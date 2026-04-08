@@ -37,6 +37,34 @@ double adcToLineAmps(double adcVolts) {
     return adcVolts * Amps_Per_Adc_Volt;
 }
 
+bool waitForDrdyFallingEdge(int gpiochip, int pin, int timeoutUs = DRDY_TIMEOUT_US) {
+    int last = lgGpioRead(gpiochip, pin);
+    if (last < 0) {
+        return false;
+    }
+
+    const int sleepStepUs = 50;  // simple bring-up polling step
+    int waited = 0;
+
+    while (waited < timeoutUs) {
+        int now = lgGpioRead(gpiochip, pin);
+        if (now < 0) {
+            return false;
+        }
+
+        // falling edge: 1 -> 0
+        if (last == 1 && now == 0) {
+            return true;
+        }
+
+        last = now;
+        std::this_thread::sleep_for(std::chrono::microseconds(sleepStepUs));
+        waited += sleepStepUs;
+    }
+
+    return false; // timeout
+}
+
 int main() {
     // create ADC object
     ADS131M02 adc("/dev/spidev0.0", 1000000);
