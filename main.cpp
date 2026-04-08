@@ -11,6 +11,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <lgpio.h>
 
 using namespace std;
 
@@ -20,6 +21,8 @@ constexpr int Sample_Rate = 4000;
 constexpr double Nominal_Vrms = 120.0;
 constexpr double Low_Limit = 108.0;
 constexpr double High_Limit = 132.0;
+constexpr int DRDY_GPIO = 27;
+constexpr int DRDY_Timeout_us = 200000;
 
 // replace with calibrated values
 constexpr double Volts_Per_Adc_Volt = 195.4;
@@ -37,7 +40,7 @@ double adcToLineAmps(double adcVolts) {
     return adcVolts * Amps_Per_Adc_Volt;
 }
 
-bool waitForDrdyFallingEdge(int gpiochip, int pin, int timeoutUs = DRDY_TIMEOUT_US) {
+bool waitForDrdyFallingEdge(int gpiochip, int pin, int timeoutUs = DRDY_Timeout_us) {
     int last = lgGpioRead(gpiochip, pin);
     if (last < 0) {
         return false;
@@ -58,7 +61,7 @@ bool waitForDrdyFallingEdge(int gpiochip, int pin, int timeoutUs = DRDY_TIMEOUT_
         }
 
         last = now;
-        std::this_thread::sleep_for(std::chrono::microseconds(sleepStepUs));
+        this_thread::sleep_for(chrono::microseconds(sleepStepUs));
         waited += sleepStepUs;
     }
 
