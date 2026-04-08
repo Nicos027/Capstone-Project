@@ -78,50 +78,68 @@ int main() {
         cerr << "ADC configuration failed/n";
         return 1;
     }
+
+    int gpiochip = lgGpiochipOpen(0);
+if (gpiochip < 0) {
+    std::cerr << "Failed to open gpiochip\n";
+    return 1;
+}
+
+if (lgGpioClaimInput(gpiochip, 0, DRDY_GPIO) < 0) {
+    std::cerr << "Failed to claim GPIO27 as input\n";
+    lgGpiochipClose(gpiochip);
+    return 1;
+}
     
     const size_t cycleSamples = static_cast<size_t>(Sample_Rate / 60.0);
     // create rolling buffers
     RollingBuffer voltageBuffer(5 * cycleSamples);
     RollingBuffer currentBuffer(5 * cycleSamples);
     
-    while (true) {
-        // repeatedly read ADC samples
-        SampleFrame frame{};
-        
-        if (!adc.readSample(frame)) {
-            cerr << "Read failed\n";
-            continue;
+   while (true) {
+    if (!waitForDrdyFallingEdge(gpiochip, DRDY_GPIO, 500000)) {
+        cerr << "DRDY timeout\n";
+        continue;
+    }
+
+    SampleFrame frame{};
+
+    if (!adc.readSample(frame)) {
+        std::cerr << "Read failed\n";
+        continue;
+    }
+
+    double vAdc = rawToAdcVolts(frame.ch0_raw, 1);
+    double iAdc = rawToAdcVolts(frame.ch1_raw, 1);
+
+    double vLine = adcToLineVolts(vAdc);
+    double iLine = adcToLineAmps(iAdc);
+
+    voltageBuffer.push(vLine);
+    currentBuffer.push(iLine);
+
+    cout << "raw=" << frame.ch0_raw
+              << " vAdc=" << vAdc
+              << " vLine=" << vLine << "\r" << std::flush;
+
+    if (voltageBuffer.size() >= cycleSamples) {
+        auto vWin = voltageBuffer.latest(cycleSamples);
+        auto iWin = currentBuffer.latest(cycleSamples);
+
+        double vrms = computeRMS(vWin);
+        double irms = computeRMS(iWin);
+
+        std::string alarm = "NORMAL";
+        if (vrms < Low_Limit) {
+            alarm = "UNDERVOLTAGE";
+        } else if (vrms > High_Limit) {
+            alarm = "OVERVOLTAGE";
         }
-        // convert raw ADC counts to ADC input voltage
-        double vAdc = rawToAdcVolts(frame.ch0_raw, 1);
-        double iAdc = rawToAdcVolts(frame.ch1_raw, 1);
-        
-        // convert ADC input voltage to line values
-        double vLine = adcToLineVolts(vAdc);
-        double iLine = adcToLineAmps(iAdc);
-        
-        // store samples in buffers
-        voltageBuffer.push(vLine);
-        currentBuffer.push(iLine);
-        
-        if (voltageBuffer.size() >= cycleSamples) {
-            // compute RMS from one cycle
-            auto vWin = voltageBuffer.latest(cycleSamples);
-            auto iWin = currentBuffer.latest(cycleSamples);
-            
-            double vrms = computeRMS(vWin);
-            double irms = computeRMS(iWin);
-            
-            // check alarm condition
-            string alarm = "NORMAL";
-            if (vrms < Low_Limit) {
-                alarm = "UNDERVOLTAGE";
-            } else if (vrms > High_Limit) {
-                alarm = "OVERVOLTAGE";
-            }
-            
-            cout << "Vrms: " << vrms << " Irms: " << irms << " Alarm: " << alarm << "\r" << flush;
-        }
+
+        cout << "Vrms: " << vrms
+                  << " Irms: " << irms
+                  << " Alarm: " << alarm << "\r" << std::flush;
+    }
         
         this_thread::sleep_for(chrono::microseconds(250));
     }
