@@ -5,8 +5,8 @@
 //  Created by Nicos Eftychiou on 4/5/26.
 //
 
-#include "ads131m02.h"
-#include "signal_processing.h"
+#include "ads131m02.hpp"
+#include "signal_processing.hpp"
 
 #include <iostream>
 #include <thread>
@@ -22,7 +22,7 @@ constexpr double Low_Limit = 108.0;
 constexpr double High_Limit = 132.0;
 
 // replace with calibrated values
-constexpr double Volts_Per_Adc_Volt = 120.0;
+constexpr double Volts_Per_Adc_Volt = 195.4;
 constexpr double Amps_Per_Adc_Volt = 60.0;
 
 double rawToAdcVolts(int32_t raw, int gain = 1) {
