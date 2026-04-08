@@ -43,25 +43,32 @@ double adcToLineAmps(double adcVolts) {
 }
 
 // Wait for a NEW DRDY pulse: high first, then low
-bool waitForDrdyPulse(int gpiochip, int pin, int timeout_us) {
+bool waitForDrdyAsserted(int gpiochip, int pin, int timeout_us = 200000) {
     auto start = chrono::steady_clock::now();
 
-    // Wait until DRDY is high
     while (true) {
         int level = lgGpioRead(gpiochip, pin);
         if (level < 0) {
             cerr << "Failed to read DRDY GPIO\n";
             return false;
         }
-        if (level == 1) break;
+
+        // DRDY asserted low
+        if (level == 0) {
+            return true;
+        }
 
         auto elapsed = chrono::duration_cast<chrono::microseconds>(
             chrono::steady_clock::now() - start
         ).count();
 
-        if (elapsed > timeout_us) return false;
-        this_thread::sleep_for(chrono::microseconds(5));
+        if (elapsed > timeout_us) {
+            return false;
+        }
+
+        this_thread::sleep_for(chrono::microseconds(10));
     }
+}
 
     // Wait for next low
     while (true) {
@@ -116,11 +123,11 @@ int main() {
     int printDivider = 0;
 
     while (true) {
-        if (!waitForDrdyPulse(gpiochip, DRDY_GPIO, DRDY_Timeout_us)) {
-            cerr << "DRDY timeout\n";
-            continue;
+        if (!waitForDrdyAsserted(gpiochip, DRDY_GPIO, DRDY_Timeout_us)) {
+    cerr << "DRDY timeout\n";
+    continue;
         }
-
+        
         SampleFrame frame{};
         if (!adc.readSample(frame)) {
             cerr << "Read failed\n";
@@ -140,16 +147,16 @@ int main() {
         if (frame.ch0_raw > rawMax) rawMax = frame.ch0_raw;
 
         // Print debug every 50 samples so the console doesn't get hammered
-        if (++printDivider >= 50) {
-            printDivider = 0;
-            cout << "raw=" << frame.ch0_raw
-                 << " rawMin=" << rawMin
-                 << " rawMax=" << rawMax
-                 << " vAdc=" << vAdc
-                 << " vLine=" << vLine
-                 << "\n";
-        }
-
+        static int debugDivider = 0;
+        if (++debugDivider >= 100) {
+        debugDivider = 0;
+        cout << "raw=" << frame.ch0_raw
+         << " rawMin=" << rawMin
+         << " rawMax=" << rawMax
+         << " vAdc=" << vAdc
+         << " vLine=" << vLine
+         << "\n";
+}
         if (voltageBuffer.size() >= cycleSamples) {
             auto vWin = voltageBuffer.latest(cycleSamples);
             auto iWin = currentBuffer.latest(cycleSamples);
