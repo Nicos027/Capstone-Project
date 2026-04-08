@@ -10,7 +10,7 @@
 using namespace std;
 
 // stores recent samples
-RollingBuffer::RollingBuffer(size_t maxSize) : maxSize {}
+RollingBuffer::RollingBuffer(size_t maxSize) : maxSize_(maxSize) {}
 
 void RollingBuffer::push(double value) {
     if (data_.size() >= maxSize_) {
@@ -26,7 +26,7 @@ vector<double> RollingBuffer::latest(size_t count) const {
     return vector<double>(data_.end() - count, data_.end());
 }
 
-size RollingBuffer::size() const {
+size_t RollingBuffer::size() const {
     return data_.size();
 }
 
@@ -39,7 +39,7 @@ double computeRMS(const vector<double>& x) {
     
     double sumSq = 0.0;
     for (double v : x) {
-        sumsSq += v * v;
+        sumSq += v * v;
     }
     return sqrt(sumSq / static_cast<double>(x.size()));
 }
