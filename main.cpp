@@ -3,8 +3,8 @@
 //  Power Quality Analyzer
 //
 
-#include "ads131m02.h"          
-#include "signal_processing.h"
+#include "ads131m02.hpp"          
+#include "signal_processing.hpp"
 
 #include <iostream>
 #include <thread>
