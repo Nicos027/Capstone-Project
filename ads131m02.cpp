@@ -225,7 +225,7 @@ bool ADS131M02::writeRegister(uint8_t addr, uint16_t value) {
 bool ADS131M02::configure() {
     // ADC 15 Click board-specific clock-control line.
     // Start with CS2 low. If behavior is still weird later, we can try high.
-    if (!setCs2Level(0)) {
+    if (!setCs2Level(1)) {
         cerr << "Failed to drive CS2/PWM\n";
         return false;
     }
