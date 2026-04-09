@@ -2,14 +2,11 @@
 //  ads131m02.cpp
 //  Power Quality Analyzer
 //
-//  ADC driver for ADS131M02 on ADC 15 Click
-//
 
 #include "ads131m02.hpp"
 
 #include <iostream>
 #include <chrono>
-#include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -24,29 +21,24 @@ static constexpr uint8_t REG_MODE   = 0x02;
 static constexpr uint8_t REG_CLOCK  = 0x03;
 static constexpr uint8_t REG_GAIN   = 0x04;
 
-static constexpr uint16_t CMD_NULL   = 0x0000;
 static constexpr uint16_t CMD_RESET  = 0x0011;
 static constexpr uint16_t CMD_UNLOCK = 0x0655;
+static constexpr uint16_t CMD_RREG   = 0xA000;
+static constexpr uint16_t CMD_WREG   = 0x6000;
 
-static void putWord24(uint8_t* buf, size_t wordIndex, uint16_t value16) {
-    buf[wordIndex * 3 + 0] = static_cast<uint8_t>((value16 >> 8) & 0xFF);
-    buf[wordIndex * 3 + 1] = static_cast<uint8_t>(value16 & 0xFF);
-    buf[wordIndex * 3 + 2] = 0x00;
-}
-
-static uint16_t getWord16From24(const uint8_t* buf, size_t wordIndex) {
-    return (static_cast<uint16_t>(buf[wordIndex * 3 + 0]) << 8) |
-           (static_cast<uint16_t>(buf[wordIndex * 3 + 1]));
-}
+static constexpr uint16_t CRC_INIT_VAL = 0xFFFF;
+static constexpr uint16_t CRC_POLYNOM  = 0x1021;
 
 ADS131M02::ADS131M02(const string& spiDevice,
                      uint32_t speedHz,
                      int drdyGpio,
+                     int rstGpio,
                      int cs2Gpio)
     : spiDevice_(spiDevice),
       speedHz_(speedHz),
       fd_(-1),
       drdyGpio_(drdyGpio),
+      rstGpio_(rstGpio),
       cs2Gpio_(cs2Gpio),
       gpiochip_(-1) {}
 
@@ -66,7 +58,12 @@ bool ADS131M02::initBoardGpio() {
         return false;
     }
 
-    if (lgGpioClaimOutput(gpiochip_, 0, cs2Gpio_, 0) < 0) {
+    if (lgGpioClaimOutput(gpiochip_, 0, rstGpio_, 1) < 0) {
+        cerr << "Failed to claim RST GPIO\n";
+        return false;
+    }
+
+    if (lgGpioClaimOutput(gpiochip_, 0, cs2Gpio_, 1) < 0) {
         cerr << "Failed to claim CS2 GPIO\n";
         return false;
     }
@@ -81,12 +78,17 @@ void ADS131M02::closeBoardGpio() {
     }
 }
 
+bool ADS131M02::setRstLevel(int level) {
+    if (gpiochip_ < 0) return false;
+    return lgGpioWrite(gpiochip_, rstGpio_, level) >= 0;
+}
+
 bool ADS131M02::setCs2Level(int level) {
     if (gpiochip_ < 0) return false;
     return lgGpioWrite(gpiochip_, cs2Gpio_, level) >= 0;
 }
 
-bool ADS131M02::waitForDrdyTransition(int timeout_us) {
+bool ADS131M02::waitForDrdyLow(int timeout_us) {
     auto start = chrono::steady_clock::now();
 
     while (true) {
@@ -95,7 +97,6 @@ bool ADS131M02::waitForDrdyTransition(int timeout_us) {
             return false;
         }
 
-        // Data ready asserted
         if (level == 0) {
             return true;
         }
@@ -173,140 +174,84 @@ int32_t ADS131M02::signed24(uint8_t b0, uint8_t b1, uint8_t b2) {
     return value;
 }
 
-bool ADS131M02::sendCommand16(uint16_t cmd) {
-    uint8_t tx[12] = {0};
-    uint8_t rx[12] = {0};
+int32_t ADS131M02::bufToVal24(const uint8_t* startByte) {
+    int32_t value = (static_cast<int32_t>(startByte[0]) << 24) |
+                    (static_cast<int32_t>(startByte[1]) << 16) |
+                    (static_cast<int32_t>(startByte[2]) << 8);
+    value >>= 8;
+    return value;
+}
 
-    putWord24(tx, 0, cmd);
-    putWord24(tx, 1, 0x0000);
-    putWord24(tx, 2, 0x0000);
-    putWord24(tx, 3, 0x0000);
+uint16_t ADS131M02::crc16_ccitt(const uint8_t* data, size_t len) {
+    uint16_t crc = CRC_INIT_VAL;
+
+    for (size_t i = 0; i < len; ++i) {
+        crc ^= static_cast<uint16_t>(data[i]) << 8;
+        for (int bit = 0; bit < 8; ++bit) {
+            if (crc & 0x8000) {
+                crc = static_cast<uint16_t>((crc << 1) ^ CRC_POLYNOM);
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+
+    return crc;
+}
+
+bool ADS131M02::sendCommand16(uint16_t cmd) {
+    uint8_t tx[6] = {0};
+    uint8_t rx[6] = {0};
+
+    tx[0] = static_cast<uint8_t>(cmd >> 8);
+    tx[1] = static_cast<uint8_t>(cmd);
+    tx[2] = 0x00;
+
+    uint16_t crc = crc16_ccitt(tx, 3);
+    tx[3] = static_cast<uint8_t>(crc >> 8);
+    tx[4] = static_cast<uint8_t>(crc);
+    tx[5] = 0x00;
 
     return transfer(tx, rx, sizeof(tx));
 }
 
 bool ADS131M02::readRegister(uint8_t addr, uint16_t& value) {
-    const uint16_t rreg = static_cast<uint16_t>(0xA000 | ((addr & 0x3F) << 7));
+    uint8_t tx[6] = {0};
+    uint8_t rx[6] = {0};
 
-    uint8_t tx1[12] = {0};
-    uint8_t rx1[12] = {0};
-    putWord24(tx1, 0, rreg);
+    uint16_t cmd = static_cast<uint16_t>(CMD_RREG | ((addr & 0x3F) << 7));
+    tx[0] = static_cast<uint8_t>(cmd >> 8);
+    tx[1] = static_cast<uint8_t>(cmd);
+    tx[2] = 0x00;
 
-    if (!transfer(tx1, rx1, sizeof(tx1))) {
-        return false;
-    }
-
-    uint8_t tx2[12] = {0};
-    uint8_t rx2[12] = {0};
-    putWord24(tx2, 0, CMD_NULL);
-
-    if (!transfer(tx2, rx2, sizeof(tx2))) {
-        return false;
-    }
-
-    value = getWord16From24(rx2, 0);
-    return true;
-}
-
-bool ADS131M02::writeRegister(uint8_t addr, uint16_t value) {
-    const uint16_t wreg = static_cast<uint16_t>(0x6000 | ((addr & 0x3F) << 7));
-
-    uint8_t tx[12] = {0};
-    uint8_t rx[12] = {0};
-
-    putWord24(tx, 0, wreg);
-    putWord24(tx, 1, value);
-    putWord24(tx, 2, 0x0000);
-    putWord24(tx, 3, 0x0000);
-
-    return transfer(tx, rx, sizeof(tx));
-}
-
-bool ADS131M02::configure() {
-    // ADC 15 Click board-specific clock-control line.
-    // Start with CS2 low. If behavior is still weird later, we can try high.
-    if (!setCs2Level(1)) {
-        cerr << "Failed to drive CS2/PWM\n";
-        return false;
-    }
-
-    usleep(5000);
-
-    if (!sendCommand16(CMD_RESET)) {
-        return false;
-    }
-    usleep(5000);
-
-    if (!sendCommand16(CMD_UNLOCK)) {
-        return false;
-    }
-    usleep(1000);
-
-    uint16_t id = 0;
-    if (!readRegister(REG_ID, id)) {
-        return false;
-    }
-    cout << "ADS131M02 ID = 0x" << hex << id << dec << "\n";
-
-    // 24-bit mode, gain = 1, default clock settings
-    if (!writeRegister(REG_MODE,  0x0510)) return false;
-    if (!writeRegister(REG_CLOCK, 0x030E)) return false;
-    if (!writeRegister(REG_GAIN,  0x0000)) return false;
-
-    uint16_t mode = 0, clock = 0, gain = 0, status = 0;
-    if (!readRegister(REG_MODE, mode))     return false;
-    if (!readRegister(REG_CLOCK, clock))   return false;
-    if (!readRegister(REG_GAIN, gain))     return false;
-    if (!readRegister(REG_STATUS, status)) return false;
-
-    cout << "MODE   = 0x" << hex << mode   << "\n";
-    cout << "CLOCK  = 0x" << hex << clock  << "\n";
-    cout << "GAIN   = 0x" << hex << gain   << "\n";
-    cout << "STATUS = 0x" << hex << status << dec << "\n";
-
-    return true;
-}
-
-bool ADS131M02::readSample(SampleFrame& frame) {
-  /*  if (!waitForDrdyTransition(200000)) {
-        return false;
-    } */
-
-    uint8_t tx[12] = {0};
-    uint8_t rx[12] = {0};
-
-    putWord24(tx, 0, CMD_NULL);
+    uint16_t crc = crc16_ccitt(tx, 3);
+    tx[3] = static_cast<uint8_t>(crc >> 8);
+    tx[4] = static_cast<uint8_t>(crc);
+    tx[5] = 0x00;
 
     if (!transfer(tx, rx, sizeof(tx))) {
         return false;
     }
 
-    uint32_t w0 = (static_cast<uint32_t>(rx[0]) << 16) |
-                  (static_cast<uint32_t>(rx[1]) << 8)  |
-                   static_cast<uint32_t>(rx[2]);
+    uint8_t rxReg[3] = {0};
+    uint8_t txDummy[3] = {0};
+    if (!transfer(txDummy, rxReg, sizeof(rxReg))) {
+        return false;
+    }
 
-    uint32_t w1 = (static_cast<uint32_t>(rx[3]) << 16) |
-                  (static_cast<uint32_t>(rx[4]) << 8)  |
-                   static_cast<uint32_t>(rx[5]);
-
-    uint32_t w2 = (static_cast<uint32_t>(rx[6]) << 16) |
-                  (static_cast<uint32_t>(rx[7]) << 8)  |
-                   static_cast<uint32_t>(rx[8]);
-
-    uint32_t w3 = (static_cast<uint32_t>(rx[9]) << 16) |
-                  (static_cast<uint32_t>(rx[10]) << 8) |
-                   static_cast<uint32_t>(rx[11]);
-
-    // Light debug; remove later if too noisy
-   /* cout << hex
-         << "W0=0x" << w0
-         << " W1=0x" << w1
-         << " W2=0x" << w2
-         << " W3=0x" << w3
-         << dec << "\n"; */
-
-    frame.ch0_raw = signed24(rx[3], rx[4], rx[5]);
-    frame.ch1_raw = signed24(rx[6], rx[7], rx[8]);
-
+    int32_t temp = bufToVal24(rxReg);
+    value = static_cast<uint16_t>(temp >> 8);
     return true;
 }
+
+bool ADS131M02::writeRegister(uint8_t addr, uint16_t value) {
+    uint8_t tx[9] = {0};
+    uint8_t rx[9] = {0};
+
+    uint16_t cmd = static_cast<uint16_t>(CMD_WREG | ((addr & 0x3F) << 7));
+    tx[0] = static_cast<uint8_t>(cmd >> 8);
+    tx[1] = static_cast<uint8_t>(cmd);
+    tx[2] = 0x00;
+
+    tx[3] = static_cast<uint8_t>(value >> 8);
+    tx[4] = static_cast<uint8_t>(
