@@ -119,8 +119,7 @@ int main() {
     int printDivider = 0;
 
     while (true) {
-        if (!waitForDrdyAsserted(gpiochip, DRDY_GPIO, DRDY_Timeout_us)) {
-    cerr << "DRDY timeout\n";
+        if (!waitForDrdyTransition(gpiochip, DRDY_GPIO, DRDY_Timeout_us)) {
     continue;
         }
         
@@ -144,14 +143,17 @@ int main() {
 
         // Print debug every 50 samples so the console doesn't get hammered
         static int debugDivider = 0;
-        if (++debugDivider >= 100) {
-        debugDivider = 0;
-        cout << "raw=" << frame.ch0_raw
+
+if (++debugDivider >= 200) {
+    debugDivider = 0;
+
+    cout << "raw=" << frame.ch0_raw
          << " rawMin=" << rawMin
          << " rawMax=" << rawMax
          << " vAdc=" << vAdc
          << " vLine=" << vLine
          << "\n";
+    }
 }
         if (voltageBuffer.size() >= cycleSamples) {
             auto vWin = voltageBuffer.latest(cycleSamples);
