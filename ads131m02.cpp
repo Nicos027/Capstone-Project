@@ -5,7 +5,7 @@
 //  ADC driver for ADS131M02 on ADC 15 Click
 //
 
-#include "ads131m02.h"
+#include "ads131m02.hpp"
 
 #include <iostream>
 #include <chrono>
