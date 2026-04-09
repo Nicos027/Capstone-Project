@@ -1,5 +1,5 @@
 //
-//  ads131m02.hpp
+//  ads131m02.h
 //  Power Quality Analyzer
 //
 
@@ -20,8 +20,8 @@ public:
     ADS131M02(const std::string& spiDevice,
               uint32_t speedHz,
               int drdyGpio,
-              int rstGpio,
-              int cs2Gpio);
+              int cs2Gpio,
+              int rstGpio);
 
     ~ADS131M02();
 
@@ -37,28 +37,39 @@ private:
     int fd_;
 
     int drdyGpio_;
-    int rstGpio_;
     int cs2Gpio_;
+    int rstGpio_;
     int gpiochip_;
+
+    uint8_t wordLenBytes_;
+    uint32_t resolution_;
+    uint8_t gain1_;
+    uint8_t gain2_;
 
     bool initBoardGpio();
     void closeBoardGpio();
 
-    bool setRstLevel(int level);
     bool setCs2Level(int level);
-    bool waitForDrdyLow(int timeout_us);
+    bool setRstLevel(int level);
+    bool dataReady() const;
+    bool waitForDataReadyLow(int timeout_us);
 
+    bool setSpiMode(uint8_t mode);
     bool transfer(const uint8_t* tx, uint8_t* rx, size_t len);
-    int32_t signed24(uint8_t b0, uint8_t b1, uint8_t b2);
+    bool writeBytes(const uint8_t* tx, size_t len);
+    bool readBytes(uint8_t* rx, size_t len);
 
-    bool sendCommand16(uint16_t cmd);
-    bool readRegister(uint8_t addr, uint16_t& value);
-    bool writeRegister(uint8_t addr, uint16_t value);
+    uint16_t crc16ccitt(const uint8_t* data, int count) const;
 
-    uint16_t crc16_ccitt(const uint8_t* data, size_t len);
-    int32_t bufToVal24(const uint8_t* startByte);
+    void bufToVal(const uint8_t* startByte, int32_t& outputData) const;
+    void valToBuf(int32_t inputData, uint8_t* startByte) const;
+
+    bool ltcWrite(uint8_t oct, uint16_t dac, uint8_t cfg);
+    bool setFrequency(uint32_t frequencyHz);
+
+    bool regWrite(uint8_t reg, uint16_t data);
+    bool regRead(uint8_t reg, uint16_t& data);
 
     bool setWordLen24();
-    bool setGainCh0(uint8_t gain);
-    bool setGainCh1(uint8_t gain);
+    bool setGain(uint8_t channelOffset, uint8_t gainEnum);
 };
