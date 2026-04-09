@@ -8,6 +8,7 @@
 #include <iostream>
 #include <cmath>
 #include <chrono>
+#include <vector>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
