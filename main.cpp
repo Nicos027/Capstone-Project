@@ -154,7 +154,7 @@ if (++debugDivider >= 200) {
          << " vLine=" << vLine
          << "\n";
     }
-}
+
         if (voltageBuffer.size() >= cycleSamples) {
             auto vWin = voltageBuffer.latest(cycleSamples);
             auto iWin = currentBuffer.latest(cycleSamples);
