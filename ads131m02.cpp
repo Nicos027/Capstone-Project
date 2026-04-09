@@ -268,9 +268,9 @@ bool ADS131M02::configure() {
 }
 
 bool ADS131M02::readSample(SampleFrame& frame) {
-    if (!waitForDrdyTransition(200000)) {
+  /*  if (!waitForDrdyTransition(200000)) {
         return false;
-    }
+    } */
 
     uint8_t tx[12] = {0};
     uint8_t rx[12] = {0};
