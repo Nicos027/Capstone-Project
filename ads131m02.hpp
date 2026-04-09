@@ -38,11 +38,7 @@ private:
     string spiDevice_;
     uint32_t speedHz_;
     int fd_;
-    
-    bool transfer(const uint8_t* tx, uint8_t* rx, size_t len);
-    int32_t signed24(uint8_t b0, uint8_t b1, uint8_t b2);
 
-private:
     bool transfer(const uint8_t* tx, uint8_t* rx, size_t len);
     int32_t signed24(uint8_t b0, uint8_t b1, uint8_t b2);
 
