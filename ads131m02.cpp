@@ -230,9 +230,3 @@ bool ADS131M02::readSample(SampleFrame& frame) {
 
     return true;
 }
-    
-    frame.ch0_raw = signed24(rx[3], rx[4], rx[5]);
-    frame.ch1_raw = signed24(rx[6], rx[7], rx[8]);
-    
-    return true;
-}
