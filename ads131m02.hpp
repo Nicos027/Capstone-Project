@@ -41,4 +41,12 @@ private:
     
     bool transfer(const uint8_t* tx, uint8_t* rx, size_t len);
     int32_t signed24(uint8_t b0, uint8_t b1, uint8_t b2);
+
+private:
+    bool transfer(const uint8_t* tx, uint8_t* rx, size_t len);
+    int32_t signed24(uint8_t b0, uint8_t b1, uint8_t b2);
+
+    bool sendCommand16(uint16_t cmd);
+    bool readRegister(uint8_t addr, uint16_t& value);
+    bool writeRegister(uint8_t addr, uint16_t value);
 };
