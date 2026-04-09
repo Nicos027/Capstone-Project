@@ -60,8 +60,10 @@ int main() {
 
     while (true) {
         SampleFrame frame{};
+        static int readFailCount = 0;
+
         if (!adc.readSample(frame)) {
-            cerr << "Read failed\n";
+            ++readFailCount;
             continue;
         }
 
@@ -85,6 +87,7 @@ int main() {
                  << " rawMax=" << rawMax
                  << " vAdc=" << vAdc
                  << " vLine=" << vLine
+                 << " readFails=" << readFailCount
                  << "\n";
         }
 
