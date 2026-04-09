@@ -1,22 +1,8 @@
-//
-//  ads131m02.h
-//  Power Quality Analyzer
-//
-//  Created by Nicos Eftychiou on 4/5/26.
-//  ADC driver
-
-#ifndef ads131m02_h
-#define ads131m02_h
-
-
-#endif /* ads131m02_h */
-
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <string>
-
-using namespace std;
 
 struct SampleFrame {
     int32_t ch0_raw;
@@ -25,19 +11,33 @@ struct SampleFrame {
 
 class ADS131M02 {
 public:
-    ADS131M02(const string& spiDevice, uint32_t speedHz);
+    ADS131M02(const std::string& spiDevice,
+              uint32_t speedHz,
+              int drdyGpio,
+              int cs2Gpio);
+
     ~ADS131M02();
-    
+
     bool openDevice();
     void closeDevice();
-    
+
     bool configure();
     bool readSample(SampleFrame& frame);
-    
+
 private:
-    string spiDevice_;
+    std::string spiDevice_;
     uint32_t speedHz_;
     int fd_;
+
+    int drdyGpio_;
+    int cs2Gpio_;
+    int gpiochip_;
+
+    bool initBoardGpio();
+    void closeBoardGpio();
+
+    bool setCs2Level(int level);
+    bool waitForDrdyTransition(int timeout_us);
 
     bool transfer(const uint8_t* tx, uint8_t* rx, size_t len);
     int32_t signed24(uint8_t b0, uint8_t b1, uint8_t b2);
