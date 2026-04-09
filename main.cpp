@@ -43,21 +43,16 @@ double adcToLineAmps(double adcVolts) {
 }
 
 // Wait for a NEW DRDY pulse: high first, then low
-bool waitForDrdyAsserted(int gpiochip, int pin, int timeout_us = 200000) {
+bool waitForDrdyTransition(int gpiochip, int pin, int timeout_us = 200000) {
     auto start = chrono::steady_clock::now();
 
-    while (true) {
-        int level = lgGpioRead(gpiochip, pin);
-        if (level < 0) {
-            cerr << "Failed to read DRDY GPIO\n";
-            return false;
-        }
+    int level = lgGpioRead(gpiochip, pin);
+    if (level < 0) {
+        return false;
+    }
 
-        // DRDY asserted low
-        if (level == 0) {
-            return true;
-        }
-
+    // If DRDY is already low, wait for it to release high first
+    while (level == 0) {
         auto elapsed = chrono::duration_cast<chrono::microseconds>(
             chrono::steady_clock::now() - start
         ).count();
@@ -66,26 +61,27 @@ bool waitForDrdyAsserted(int gpiochip, int pin, int timeout_us = 200000) {
             return false;
         }
 
-        this_thread::sleep_for(chrono::microseconds(10));
+        this_thread::sleep_for(chrono::microseconds(2));
+        level = lgGpioRead(gpiochip, pin);
+        if (level < 0) return false;
     }
-}
 
-    // Wait for next low
-    while (true) {
-        int level = lgGpioRead(gpiochip, pin);
-        if (level < 0) {
-            cerr << "Failed to read DRDY GPIO\n";
-            return false;
-        }
-        if (level == 0) return true;
-
+    // Now wait for the next asserted-low event
+    while (level == 1) {
         auto elapsed = chrono::duration_cast<chrono::microseconds>(
             chrono::steady_clock::now() - start
         ).count();
 
-        if (elapsed > timeout_us) return false;
-        this_thread::sleep_for(chrono::microseconds(5));
+        if (elapsed > timeout_us) {
+            return false;
+        }
+
+        this_thread::sleep_for(chrono::microseconds(2));
+        level = lgGpioRead(gpiochip, pin);
+        if (level < 0) return false;
     }
+
+    return true;
 }
 
 int main() {
