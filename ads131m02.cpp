@@ -16,6 +16,16 @@
 
 using namespace std;
 
+static constexpr uint8_t REG_ID     = 0x00;
+static constexpr uint8_t REG_STATUS = 0x01;
+static constexpr uint8_t REG_MODE   = 0x02;
+static constexpr uint8_t REG_CLOCK  = 0x03;
+static constexpr uint8_t REG_GAIN   = 0x04;
+
+static constexpr uint16_t CMD_NULL   = 0x0000;
+static constexpr uint16_t CMD_RESET  = 0x0011;
+static constexpr uint16_t CMD_UNLOCK = 0x0655;
+
 ADS131M02::ADS131M02(const string& spiDevice, uint32_t speedHz)  : spiDevice_(spiDevice), speedHz_(speedHz), fd_(-1) {}
 
 ADS131M02::~ADS131M02() {
