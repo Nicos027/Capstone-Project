@@ -64,8 +64,12 @@ int main() {
 
         if (!adc.readSample(frame)) {
             ++readFailCount;
-            continue;
+
+        if (readFailCount % 50 == 0) {
+            cerr << "readSample still failing, count=" << readFailCount << "\n";
         }
+        continue;
+    }
 
         double vAdc  = rawToAdcVolts(frame.ch0_raw, 1);
         double iAdc  = rawToAdcVolts(frame.ch1_raw, 1);
