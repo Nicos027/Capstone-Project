@@ -3,15 +3,12 @@
 //  Power Quality Analyzer
 //
 
-#include "ads131m02.hpp"          
-#include "signal_processing.hpp"
+#include "ads131m02.h"
+#include "signal_processing.h"
 
 #include <iostream>
-#include <thread>
-#include <chrono>
 #include <climits>
 #include <cstdint>
-#include <lgpio.h>
 
 using namespace std;
 
@@ -22,9 +19,6 @@ constexpr int Sample_Rate = 4000;
 constexpr double Nominal_Vrms = 120.0;
 constexpr double Low_Limit = 108.0;
 constexpr double High_Limit = 132.0;
-
-constexpr int DRDY_GPIO = 27;
-constexpr int DRDY_Timeout_us = 200000;
 
 // Replace with calibrated values later
 constexpr double Volts_Per_Adc_Volt = 195.4;
@@ -42,50 +36,9 @@ double adcToLineAmps(double adcVolts) {
     return adcVolts * Amps_Per_Adc_Volt;
 }
 
-// Wait for a NEW DRDY pulse: high first, then low
-bool waitForDrdyTransition(int gpiochip, int pin, int timeout_us = 200000) {
-    auto start = chrono::steady_clock::now();
-
-    int level = lgGpioRead(gpiochip, pin);
-    if (level < 0) {
-        return false;
-    }
-
-    // If DRDY is already low, wait for it to release high first
-    while (level == 0) {
-        auto elapsed = chrono::duration_cast<chrono::microseconds>(
-            chrono::steady_clock::now() - start
-        ).count();
-
-        if (elapsed > timeout_us) {
-            return false;
-        }
-
-        this_thread::sleep_for(chrono::microseconds(2));
-        level = lgGpioRead(gpiochip, pin);
-        if (level < 0) return false;
-    }
-
-    // Now wait for the next asserted-low event
-    while (level == 1) {
-        auto elapsed = chrono::duration_cast<chrono::microseconds>(
-            chrono::steady_clock::now() - start
-        ).count();
-
-        if (elapsed > timeout_us) {
-            return false;
-        }
-
-        this_thread::sleep_for(chrono::microseconds(2));
-        level = lgGpioRead(gpiochip, pin);
-        if (level < 0) return false;
-    }
-
-    return true;
-}
-
 int main() {
-    ADS131M02 adc("/dev/spidev0.0", 1000000);
+    // SPI device, SPI speed, DRDY GPIO, CS2/PWM GPIO
+    ADS131M02 adc("/dev/spidev0.0", 1000000, 27, 17);
 
     if (!adc.openDevice()) {
         cerr << "Failed to open ADC\n";
@@ -97,18 +50,6 @@ int main() {
         return 1;
     }
 
-    int gpiochip = lgGpiochipOpen(0);
-    if (gpiochip < 0) {
-        cerr << "Failed to open gpiochip\n";
-        return 1;
-    }
-
-    if (lgGpioClaimInput(gpiochip, 0, DRDY_GPIO) < 0) {
-        cerr << "Failed to claim GPIO27 as input\n";
-        lgGpiochipClose(gpiochip);
-        return 1;
-    }
-
     const size_t cycleSamples = static_cast<size_t>(Sample_Rate / 60.0);
 
     RollingBuffer voltageBuffer(5 * cycleSamples);
@@ -116,13 +57,8 @@ int main() {
 
     int32_t rawMin = INT32_MAX;
     int32_t rawMax = INT32_MIN;
-    int printDivider = 0;
 
     while (true) {
-        if (!waitForDrdyTransition(gpiochip, DRDY_GPIO, DRDY_Timeout_us)) {
-    continue;
-        }
-        
         SampleFrame frame{};
         if (!adc.readSample(frame)) {
             cerr << "Read failed\n";
@@ -141,19 +77,16 @@ int main() {
         if (frame.ch0_raw < rawMin) rawMin = frame.ch0_raw;
         if (frame.ch0_raw > rawMax) rawMax = frame.ch0_raw;
 
-        // Print debug every 50 samples so the console doesn't get hammered
         static int debugDivider = 0;
-
-if (++debugDivider >= 200) {
-    debugDivider = 0;
-
-    cout << "raw=" << frame.ch0_raw
-         << " rawMin=" << rawMin
-         << " rawMax=" << rawMax
-         << " vAdc=" << vAdc
-         << " vLine=" << vLine
-         << "\n";
-    }
+        if (++debugDivider >= 200) {
+            debugDivider = 0;
+            cout << "raw=" << frame.ch0_raw
+                 << " rawMin=" << rawMin
+                 << " rawMax=" << rawMax
+                 << " vAdc=" << vAdc
+                 << " vLine=" << vLine
+                 << "\n";
+        }
 
         if (voltageBuffer.size() >= cycleSamples) {
             auto vWin = voltageBuffer.latest(cycleSamples);
@@ -176,8 +109,6 @@ if (++debugDivider >= 200) {
         }
     }
 
-    // unreachable in current loop, but fine to leave here
-    lgGpiochipClose(gpiochip);
     adc.closeDevice();
     return 0;
 }
