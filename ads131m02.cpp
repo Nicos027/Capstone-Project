@@ -26,6 +26,17 @@ static constexpr uint16_t CMD_NULL   = 0x0000;
 static constexpr uint16_t CMD_RESET  = 0x0011;
 static constexpr uint16_t CMD_UNLOCK = 0x0655;
 
+static void putWord24(uint8_t* buf, size_t wordIndex, uint16_t value16) {
+    buf[wordIndex * 3 + 0] = static_cast<uint8_t>((value16 >> 8) & 0xFF);
+    buf[wordIndex * 3 + 1] = static_cast<uint8_t>(value16 & 0xFF);
+    buf[wordIndex * 3 + 2] = 0x00;
+}
+
+static uint16_t getWord16From24(const uint8_t* buf, size_t wordIndex) {
+    return (static_cast<uint16_t>(buf[wordIndex * 3 + 0]) << 8) |
+            static_cast<uint16_t>(buf[wordIndex * 3 + 1]);
+}
+
 ADS131M02::ADS131M02(const string& spiDevice, uint32_t speedHz)  : spiDevice_(spiDevice), speedHz_(speedHz), fd_(-1) {}
 
 ADS131M02::~ADS131M02() {
@@ -93,8 +104,88 @@ int32_t ADS131M02::signed24(uint8_t b0, uint8_t b1, uint8_t b2) {
     return value;
 }
 
+bool ADS131M02::sendCommand16(uint16_t cmd) {
+    uint8_t tx[12] = {0};
+    uint8_t rx[12] = {0};
+
+    putWord24(tx, 0, cmd);
+    putWord24(tx, 1, 0x0000);
+    putWord24(tx, 2, 0x0000);
+    putWord24(tx, 3, 0x0000);
+
+    return transfer(tx, rx, sizeof(tx));
+}
+
+bool ADS131M02::readRegister(uint8_t addr, uint16_t& value) {
+    const uint16_t rreg = static_cast<uint16_t>(0xA000 | ((addr & 0x3F) << 7));
+
+    uint8_t tx1[12] = {0};
+    uint8_t rx1[12] = {0};
+    putWord24(tx1, 0, rreg);
+
+    if (!transfer(tx1, rx1, sizeof(tx1))) {
+        return false;
+    }
+
+    uint8_t tx2[12] = {0};
+    uint8_t rx2[12] = {0};
+    putWord24(tx2, 0, CMD_NULL);
+
+    if (!transfer(tx2, rx2, sizeof(tx2))) {
+        return false;
+    }
+
+    value = getWord16From24(rx2, 0);
+    return true;
+}
+
+bool ADS131M02::writeRegister(uint8_t addr, uint16_t value) {
+    const uint16_t wreg = static_cast<uint16_t>(0x6000 | ((addr & 0x3F) << 7));
+
+    uint8_t tx[12] = {0};
+    uint8_t rx[12] = {0};
+
+    putWord24(tx, 0, wreg);
+    putWord24(tx, 1, value);
+    putWord24(tx, 2, 0x0000);
+    putWord24(tx, 3, 0x0000);
+
+    return transfer(tx, rx, sizeof(tx));
+}
+
 bool ADS131M02::configure() {
-    // placeholder
+    if (!sendCommand16(CMD_RESET)) {
+        return false;
+    }
+    usleep(5000);
+
+    if (!sendCommand16(CMD_UNLOCK)) {
+        return false;
+    }
+    usleep(1000);
+
+    uint16_t id = 0;
+    if (!readRegister(REG_ID, id)) {
+        return false;
+    }
+    cout << "ADS131M02 ID = 0x" << hex << id << dec << "\n";
+
+    // default 24-bit mode, gain = 1
+    if (!writeRegister(REG_MODE,  0x0510)) return false;
+    if (!writeRegister(REG_CLOCK, 0x030E)) return false;
+    if (!writeRegister(REG_GAIN,  0x0000)) return false;
+
+    uint16_t mode = 0, clock = 0, gain = 0, status = 0;
+    if (!readRegister(REG_MODE, mode))     return false;
+    if (!readRegister(REG_CLOCK, clock))   return false;
+    if (!readRegister(REG_GAIN, gain))     return false;
+    if (!readRegister(REG_STATUS, status)) return false;
+
+    cout << "MODE   = 0x" << hex << mode   << "\n";
+    cout << "CLOCK  = 0x" << hex << clock  << "\n";
+    cout << "GAIN   = 0x" << hex << gain   << "\n";
+    cout << "STATUS = 0x" << hex << status << dec << "\n";
+
     return true;
 }
 
@@ -102,13 +193,43 @@ bool ADS131M02::configure() {
 // ch0_raw (raw voltage sample)
 // ch1_raw (raw current sample)
 bool ADS131M02::readSample(SampleFrame& frame) {
-    // placeholder 12 byte frame
-    uint8_t tx[12] {0};
-    uint8_t rx[12] {0};
-    
+    uint8_t tx[12] = {0};
+    uint8_t rx[12] = {0};
+
+    putWord24(tx, 0, CMD_NULL);
+
     if (!transfer(tx, rx, sizeof(tx))) {
         return false;
- }
+    }
+
+    uint32_t w0 = (static_cast<uint32_t>(rx[0]) << 16) |
+                  (static_cast<uint32_t>(rx[1]) << 8)  |
+                   static_cast<uint32_t>(rx[2]);
+
+    uint32_t w1 = (static_cast<uint32_t>(rx[3]) << 16) |
+                  (static_cast<uint32_t>(rx[4]) << 8)  |
+                   static_cast<uint32_t>(rx[5]);
+
+    uint32_t w2 = (static_cast<uint32_t>(rx[6]) << 16) |
+                  (static_cast<uint32_t>(rx[7]) << 8)  |
+                   static_cast<uint32_t>(rx[8]);
+
+    uint32_t w3 = (static_cast<uint32_t>(rx[9]) << 16) |
+                  (static_cast<uint32_t>(rx[10]) << 8) |
+                   static_cast<uint32_t>(rx[11]);
+
+    cout << hex
+         << "W0=0x" << w0
+         << " W1=0x" << w1
+         << " W2=0x" << w2
+         << " W3=0x" << w3
+         << dec << "\n";
+
+    frame.ch0_raw = signed24(rx[3], rx[4], rx[5]);
+    frame.ch1_raw = signed24(rx[6], rx[7], rx[8]);
+
+    return true;
+}
     
     frame.ch0_raw = signed24(rx[3], rx[4], rx[5]);
     frame.ch1_raw = signed24(rx[6], rx[7], rx[8]);
