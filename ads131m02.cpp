@@ -89,32 +89,26 @@ bool ADS131M02::setCs2Level(int level) {
 bool ADS131M02::waitForDrdyTransition(int timeout_us) {
     auto start = chrono::steady_clock::now();
 
-    int level = lgGpioRead(gpiochip_, drdyGpio_);
-    if (level < 0) return false;
+    while (true) {
+        int level = lgGpioRead(gpiochip_, drdyGpio_);
+        if (level < 0) {
+            return false;
+        }
 
-    // If already low, wait for release
-    while (level == 0) {
+        // Data ready asserted
+        if (level == 0) {
+            return true;
+        }
+
         auto elapsed = chrono::duration_cast<chrono::microseconds>(
             chrono::steady_clock::now() - start).count();
-        if (elapsed > timeout_us) return false;
 
-        usleep(2);
-        level = lgGpioRead(gpiochip_, drdyGpio_);
-        if (level < 0) return false;
+        if (elapsed > timeout_us) {
+            return false;
+        }
+
+        usleep(10);
     }
-
-    // Wait for next asserted-low DRDY
-    while (level == 1) {
-        auto elapsed = chrono::duration_cast<chrono::microseconds>(
-            chrono::steady_clock::now() - start).count();
-        if (elapsed > timeout_us) return false;
-
-        usleep(2);
-        level = lgGpioRead(gpiochip_, drdyGpio_);
-        if (level < 0) return false;
-    }
-
-    return true;
 }
 
 bool ADS131M02::openDevice() {
@@ -304,12 +298,12 @@ bool ADS131M02::readSample(SampleFrame& frame) {
                    static_cast<uint32_t>(rx[11]);
 
     // Light debug; remove later if too noisy
-    cout << hex
+   /* cout << hex
          << "W0=0x" << w0
          << " W1=0x" << w1
          << " W2=0x" << w2
          << " W3=0x" << w3
-         << dec << "\n";
+         << dec << "\n"; */
 
     frame.ch0_raw = signed24(rx[3], rx[4], rx[5]);
     frame.ch1_raw = signed24(rx[6], rx[7], rx[8]);
