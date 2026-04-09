@@ -2,17 +2,19 @@
 //  ads131m02.cpp
 //  Power Quality Analyzer
 //
-//  Created by Nicos Eftychiou on 4/5/26.
-//  ADC driver
+//  ADC driver for ADS131M02 on ADC 15 Click
+//
 
-#include "ads131m02.hpp"
+#include "ads131m02.h"
 
 #include <iostream>
+#include <chrono>
 #include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <linux/spi/spidev.h>
+#include <lgpio.h>
 
 using namespace std;
 
@@ -34,70 +36,143 @@ static void putWord24(uint8_t* buf, size_t wordIndex, uint16_t value16) {
 
 static uint16_t getWord16From24(const uint8_t* buf, size_t wordIndex) {
     return (static_cast<uint16_t>(buf[wordIndex * 3 + 0]) << 8) |
-            static_cast<uint16_t>(buf[wordIndex * 3 + 1]);
+           (static_cast<uint16_t>(buf[wordIndex * 3 + 1]));
 }
 
-ADS131M02::ADS131M02(const string& spiDevice, uint32_t speedHz)  : spiDevice_(spiDevice), speedHz_(speedHz), fd_(-1) {}
+ADS131M02::ADS131M02(const string& spiDevice,
+                     uint32_t speedHz,
+                     int drdyGpio,
+                     int cs2Gpio)
+    : spiDevice_(spiDevice),
+      speedHz_(speedHz),
+      fd_(-1),
+      drdyGpio_(drdyGpio),
+      cs2Gpio_(cs2Gpio),
+      gpiochip_(-1) {}
 
 ADS131M02::~ADS131M02() {
     closeDevice();
 }
 
-// opens Pi's SPI interface and configures
+bool ADS131M02::initBoardGpio() {
+    gpiochip_ = lgGpiochipOpen(0);
+    if (gpiochip_ < 0) {
+        cerr << "Failed to open gpiochip\n";
+        return false;
+    }
+
+    if (lgGpioClaimInput(gpiochip_, 0, drdyGpio_) < 0) {
+        cerr << "Failed to claim DRDY GPIO\n";
+        return false;
+    }
+
+    if (lgGpioClaimOutput(gpiochip_, 0, cs2Gpio_, 0) < 0) {
+        cerr << "Failed to claim CS2 GPIO\n";
+        return false;
+    }
+
+    return true;
+}
+
+void ADS131M02::closeBoardGpio() {
+    if (gpiochip_ >= 0) {
+        lgGpiochipClose(gpiochip_);
+        gpiochip_ = -1;
+    }
+}
+
+bool ADS131M02::setCs2Level(int level) {
+    if (gpiochip_ < 0) return false;
+    return lgGpioWrite(gpiochip_, cs2Gpio_, level) >= 0;
+}
+
+bool ADS131M02::waitForDrdyTransition(int timeout_us) {
+    auto start = chrono::steady_clock::now();
+
+    int level = lgGpioRead(gpiochip_, drdyGpio_);
+    if (level < 0) return false;
+
+    // If already low, wait for release
+    while (level == 0) {
+        auto elapsed = chrono::duration_cast<chrono::microseconds>(
+            chrono::steady_clock::now() - start).count();
+        if (elapsed > timeout_us) return false;
+
+        usleep(2);
+        level = lgGpioRead(gpiochip_, drdyGpio_);
+        if (level < 0) return false;
+    }
+
+    // Wait for next asserted-low DRDY
+    while (level == 1) {
+        auto elapsed = chrono::duration_cast<chrono::microseconds>(
+            chrono::steady_clock::now() - start).count();
+        if (elapsed > timeout_us) return false;
+
+        usleep(2);
+        level = lgGpioRead(gpiochip_, drdyGpio_);
+        if (level < 0) return false;
+    }
+
+    return true;
+}
+
 bool ADS131M02::openDevice() {
     fd_ = open(spiDevice_.c_str(), O_RDWR);
     if (fd_ < 0) {
-        cerr << "Failed to opem SPI device:" << spiDevice_ << "\n";
+        cerr << "Failed to open SPI device: " << spiDevice_ << "\n";
         return false;
     }
-    
+
     uint8_t mode = SPI_MODE_1;
     uint8_t bits = 8;
-    
+
     if (ioctl(fd_, SPI_IOC_WR_MODE, &mode) < 0) {
         cerr << "Failed to set SPI mode\n";
         return false;
     }
-    
+
     if (ioctl(fd_, SPI_IOC_WR_BITS_PER_WORD, &bits) < 0) {
         cerr << "Failed to set bits per word\n";
         return false;
     }
-    
+
     if (ioctl(fd_, SPI_IOC_WR_MAX_SPEED_HZ, &speedHz_) < 0) {
         cerr << "Failed to set SPI speed\n";
         return false;
     }
-    
+
+    if (!initBoardGpio()) {
+        return false;
+    }
+
     return true;
 }
 
-    void ADS131M02::closeDevice() {
-        if (fd_ >= 0) {
-            close (fd_);
-            fd_ = -1;
-        }
+void ADS131M02::closeDevice() {
+    if (fd_ >= 0) {
+        close(fd_);
+        fd_ = -1;
+    }
+    closeBoardGpio();
 }
 
-// sends bytes to the ADC and reads bytes back
 bool ADS131M02::transfer(const uint8_t* tx, uint8_t* rx, size_t len) {
-spi_ioc_transfer tr{};
-tr.tx_buf = reinterpret_cast<unsigned long>(tx);
-tr.rx_buf = reinterpret_cast<unsigned long>(rx);
-tr.len = static_cast<uint32_t>(len);
-tr.speed_hz = speedHz_;
-tr.bits_per_word = 8;
+    spi_ioc_transfer tr{};
+    tr.tx_buf = reinterpret_cast<unsigned long>(tx);
+    tr.rx_buf = reinterpret_cast<unsigned long>(rx);
+    tr.len = static_cast<uint32_t>(len);
+    tr.speed_hz = speedHz_;
+    tr.bits_per_word = 8;
 
-return ioctl(fd_, SPI_IOC_MESSAGE(1), &tr) >=0;
+    return ioctl(fd_, SPI_IOC_MESSAGE(1), &tr) >= 0;
 }
 
-// ADC gives data as 3 bytes per channel
-// combines 3 bytes into single signed number
 int32_t ADS131M02::signed24(uint8_t b0, uint8_t b1, uint8_t b2) {
     int32_t value = (static_cast<int32_t>(b0) << 16) |
                     (static_cast<int32_t>(b1) << 8)  |
-    static_cast<int32_t>(b2);
-    
+                     static_cast<int32_t>(b2);
+
     if (value & 0x800000) {
         value |= 0xFF000000;
     }
@@ -154,6 +229,15 @@ bool ADS131M02::writeRegister(uint8_t addr, uint16_t value) {
 }
 
 bool ADS131M02::configure() {
+    // ADC 15 Click board-specific clock-control line.
+    // Start with CS2 low. If behavior is still weird later, we can try high.
+    if (!setCs2Level(0)) {
+        cerr << "Failed to drive CS2/PWM\n";
+        return false;
+    }
+
+    usleep(5000);
+
     if (!sendCommand16(CMD_RESET)) {
         return false;
     }
@@ -170,7 +254,7 @@ bool ADS131M02::configure() {
     }
     cout << "ADS131M02 ID = 0x" << hex << id << dec << "\n";
 
-    // default 24-bit mode, gain = 1
+    // 24-bit mode, gain = 1, default clock settings
     if (!writeRegister(REG_MODE,  0x0510)) return false;
     if (!writeRegister(REG_CLOCK, 0x030E)) return false;
     if (!writeRegister(REG_GAIN,  0x0000)) return false;
@@ -189,10 +273,11 @@ bool ADS131M02::configure() {
     return true;
 }
 
-// reads one frame from ADC and extracts
-// ch0_raw (raw voltage sample)
-// ch1_raw (raw current sample)
 bool ADS131M02::readSample(SampleFrame& frame) {
+    if (!waitForDrdyTransition(200000)) {
+        return false;
+    }
+
     uint8_t tx[12] = {0};
     uint8_t rx[12] = {0};
 
@@ -218,6 +303,7 @@ bool ADS131M02::readSample(SampleFrame& frame) {
                   (static_cast<uint32_t>(rx[10]) << 8) |
                    static_cast<uint32_t>(rx[11]);
 
+    // Light debug; remove later if too noisy
     cout << hex
          << "W0=0x" << w0
          << " W1=0x" << w1
