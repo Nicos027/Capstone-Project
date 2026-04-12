@@ -100,7 +100,7 @@ int main() {
             auto iWin = currentBuffer.latest(cycleSamples);
 
             double vrms = computeRMS(vWin);
-            double irms = computeRMS(iWin);
+            double irms = computeACRMS(iWin);
 
             string alarm = "NORMAL";
             if (vrms < Low_Limit) {
