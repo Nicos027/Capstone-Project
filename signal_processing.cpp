@@ -54,7 +54,7 @@ double computeMean(const std::vector<double>& x) {
     return sum / static_cast<double>(x.size());
 }
 
-double computeACRMS(const std::vector<double>& x) {
+double computeACRMS(const vector<double>& x) {
     if (x.empty()) return 0.0;
 
     double mean = computeMean(x);
@@ -65,5 +65,5 @@ double computeACRMS(const std::vector<double>& x) {
         sumSq += centered * centered;
     }
 
-    return std::sqrt(sumSq / static_cast<double>(x.size()));
+    return sqrt(sumSq / static_cast<double>(x.size()));
 }
