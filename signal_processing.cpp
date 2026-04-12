@@ -43,3 +43,27 @@ double computeRMS(const vector<double>& x) {
     }
     return sqrt(sumSq / static_cast<double>(x.size()));
 }
+double computeMean(const std::vector<double>& x) {
+    if (x.empty()) return 0.0;
+
+    double sum = 0.0;
+    for (double v : x) {
+        sum += v;
+    }
+
+    return sum / static_cast<double>(x.size());
+}
+
+double computeACRMS(const std::vector<double>& x) {
+    if (x.empty()) return 0.0;
+
+    double mean = computeMean(x);
+
+    double sumSq = 0.0;
+    for (double v : x) {
+        double centered = v - mean;
+        sumSq += centered * centered;
+    }
+
+    return std::sqrt(sumSq / static_cast<double>(x.size()));
+}
