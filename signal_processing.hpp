@@ -34,3 +34,5 @@ private:
 };
 
 double computeRMS(const vector<double>& x);
+double computeMean(const std::vector<double>& x);
+double computeACRMS(const std::vector<double>& x);
