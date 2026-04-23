@@ -1,0 +1,52 @@
+#include <iostream>
+#include <thread>
+#include <chrono>
+#include <csignal>
+#include <lgpio.h>
+
+using namespace std;
+
+constexpr int RELAY_GPIO = 16;
+
+static int gpiochip = -1;
+static volatile sig_atomic_t keepRunning = 1;
+
+void signalHandler(int) {
+    keepRunning = 0;
+}
+
+int main() {
+    signal(SIGINT, signalHandler);
+
+    gpiochip = lgGpiochipOpen(0);
+    if (gpiochip < 0) {
+        cerr << "Failed to open gpiochip\n";
+        return 1;
+    }
+
+    // Start LOW = relay off
+    if (lgGpioClaimOutput(gpiochip, 0, RELAY_GPIO, 0) < 0) {
+        cerr << "Failed to claim relay GPIO " << RELAY_GPIO << "\n";
+        lgGpiochipClose(gpiochip);
+        return 1;
+    }
+
+    cout << "Relay test started on GPIO " << RELAY_GPIO << ". Press Ctrl+C to stop.\n";
+
+    while (keepRunning) {
+        cout << "Relay ON\n";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 1);
+        this_thread::sleep_for(chrono::seconds(2));
+
+        cout << "Relay OFF\n";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 0);
+        this_thread::sleep_for(chrono::seconds(2));
+    }
+
+    // Fail safe off
+    lgGpioWrite(gpiochip, RELAY_GPIO, 0);
+    lgGpiochipClose(gpiochip);
+
+    cout << "Relay test stopped.\n";
+    return 0;
+}
