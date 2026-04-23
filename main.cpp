@@ -9,6 +9,7 @@
 #include <iostream>
 #include <climits>
 #include <cstdint>
+#include <lgpio.h>
 
 using namespace std;
 
@@ -18,6 +19,8 @@ constexpr int Sample_Rate = 4000;
 
 constexpr double Low_Limit = 108.0;
 constexpr double High_Limit = 132.0;
+constexpr double Current_High_Limit = 6.5;
+constexpr int Relay_Gpio = 16;
 
 // Keep these as calibration placeholders for now
 constexpr double Volts_Per_Adc_Volt = 195.4;
@@ -49,13 +52,29 @@ int main() {
         return 1;
     }
 
-    const size_t cycleSamples = static_cast<size_t>(Sample_Rate / 60.0);
+    int gpiochip = lgGpiochipOpen(0);
+    if (gpiochip < 0) {
+        cerr << "Failed to open gpiochip for relay\n";
+        adc.closeDevice();
+        return 1;
+    }
+
+    // Start HIGH = relay OFF (active-low relay)
+    if (lgGpioClaimOutput(gpiochip, 0, Relay_Gpio, 1) < 0) {
+        cerr << "Failed to claim relay GPIO\n";
+        lgGpiochipClose(gpiochip);
+        adc.closeDevice();
+        return 1;
+    }
+     const size_t cycleSamples = static_cast<size_t>(Sample_Rate / 60.0);
 
     RollingBuffer voltageBuffer(5 * cycleSamples);
     RollingBuffer currentBuffer(5 * cycleSamples);
 
     int32_t rawMin = INT32_MAX;
     int32_t rawMax = INT32_MIN;
+
+    bool relayLatched = false;
 
     while (true) {
         SampleFrame frame{};
@@ -94,8 +113,7 @@ int main() {
                  << " readFails=" << readFailCount
                  << "\n";
         }
-
-        if (voltageBuffer.size() >= cycleSamples) {
+         if (voltageBuffer.size() >= cycleSamples) {
             auto vWin = voltageBuffer.latest(cycleSamples);
             auto iWin = currentBuffer.latest(cycleSamples);
 
@@ -107,6 +125,15 @@ int main() {
                 alarm = "UNDERVOLTAGE";
             } else if (vrms > High_Limit) {
                 alarm = "OVERVOLTAGE";
+                if (!relayLatched) {
+                    relayLatched = true;
+                    lgGpioWrite(gpiochip, Relay_Gpio, 0);   // energize relay
+                }
+            } else if (irms > Current_High_Limit) {
+                if (!relayLatched) {
+                    relayLatched = true;
+                    lgGpioWrite(gpiochip, Relay_Gpio, 0);   // energize relay
+                }
             }
 
             cout << "Vrms=" << vrms
@@ -116,6 +143,8 @@ int main() {
         }
     }
 
+    lgGpioWrite(gpiochip, Relay_Gpio, 1);
+    lgGpiochipClose(gpiochip);
     adc.closeDevice();
     return 0;
 }
