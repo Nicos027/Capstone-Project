@@ -43,7 +43,7 @@ double computeRMS(const vector<double>& x) {
     }
     return sqrt(sumSq / static_cast<double>(x.size()));
 }
-double computeMean(const std::vector<double>& x) {
+double computeMean(const vector<double>& x) {
     if (x.empty()) return 0.0;
 
     double sum = 0.0;
