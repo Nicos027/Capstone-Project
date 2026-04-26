@@ -16,8 +16,8 @@ static constexpr double Vref = 1.2;
 static constexpr double FS_Counts = 8388608.0;
 static constexpr int    Sample_Rate = 4000;
 
-static constexpr double Volts_Per_Adc_Volt = 195.4;
-static constexpr double Amps_Per_Adc_Volt  = 60.0;
+static constexpr double Volts_Per_Adc_Volt = 184.0;
+static constexpr double Amps_Per_Adc_Volt  = 61.0;
 
 static double rawToAdcVolts(int32_t raw, int gain = 1) {
     return (static_cast<double>(raw) / FS_Counts) * (Vref / gain);
