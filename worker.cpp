@@ -150,7 +150,11 @@ void Worker::run() {
             QVector<double> vWave = QVector<double>(vWaveSamples.begin(), vWaveSamples.end());
             QVector<double> iWave = QVector<double>(iWaveSamples.begin(), iWaveSamples.end());
 
-            emit newReadings(vrms, irms, alarm);
+            double realPower = computeMeanProduct(vWin, iWin);
+            double apparentPower = computeApparentPower(vrms, irms);
+            double powerFactor = computePowerFactor (realPower, apparentPower);
+            
+            emit newReadings(vrms, irms, realPower, apparentPower, powerFactor, alarm);
             emit newWaveform(vWave, iWave);
 
             if (alarm != "NORMAL" && alarm != lastAlarmState) {
