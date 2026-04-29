@@ -137,9 +137,9 @@ void MainWindow::buildUi()
 
     QWidget *vPanel  = makeReadingPanel("V RMS", "volts", "#E24B4A", vrmsValueLabel_);
     QWidget *iPanel  = makeReadingPanel("I RMS", "amps",  "#EF9F27", irmsValueLabel_);
-    QWidget *pPanel  = makeReadingPanel("REAL POWER", "W",   "#4CAF50", realPowerValueLabel_);
-    QWidget *sPanel  = makeReadingPanel("APPARENT POWER", "VA", "#42A5F5", apparentPowerValueLabel_);
-    QWidget *pfPanel = makeReadingPanel("POWER FACTOR", "",    "#AB47BC", powerFactorValueLabel_);
+    QWidget *pPanel  = makeReadingPanel("REAL POWER", "W",   "#4CAF50", realPowerValue_);
+    QWidget *sPanel  = makeReadingPanel("APPARENT POWER", "VA", "#42A5F5", apparentPowerValue_);
+    QWidget *pfPanel = makeReadingPanel("POWER FACTOR", "",    "#AB47BC", powerFactorValue_);
     
     readingsLayout->addWidget(vPanel);
     readingsLayout->addWidget(iPanel);
@@ -258,9 +258,9 @@ void MainWindow::onNewReadings(double vrms,
 {
     vrmsValueLabel_->setText(QString::number(vrms, 'f', 1));
     irmsValueLabel_->setText(QString::number(irms, 'f', 2));
-    realPowerValueLabel_->setText(QString::number(realPower, 'f', 1));
-    apparentPowerValueLabel_->setText(QString::number(apparentPower, 'f', 1));
-    powerFactorValueLabel_->setText(QString::number(powerFactor, 'f', 3));
+    realPowerValue_->setText(QString::number(realPower, 'f', 1));
+    apparentPowerValue_->setText(QString::number(apparentPower, 'f', 1));
+    powerFactorValue_->setText(QString::number(powerFactor, 'f', 3));
 
     if (alarm == "NORMAL") {
         alarmLabel_->setText("NORMAL");
