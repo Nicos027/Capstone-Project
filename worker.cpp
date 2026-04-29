@@ -193,29 +193,39 @@ void Worker::run() {
             emitDivider = 0;
 
             auto vWin = voltageBuffer.latest(cycleSamples);
-            auto iWin = currentBuffer.latest(cycleSamples);
+auto iWin = currentBuffer.latest(cycleSamples);
 
-            double vrms = computeRMS(vWin);
-            double irms = computeACRMS(iWin);
+double vrms = computeRMS(vWin);          // or computeACRMS(vWin) if needed
+double irms = computeACRMS(iWin);
 
-            QString alarm = "NORMAL";
-            if (vrms < LOW_VOLT_LIMIT)       alarm = "UNDERVOLTAGE";
-            else if (vrms > HIGH_VOLT_LIMIT) alarm = "OVERVOLTAGE";
-            else if (irms > HIGH_CURRENT_LIMIT) alarm = "OVERCURRENT";
+double realPower = computeMeanProduct(vWinCentered, iWinCentered);
+double apparentPower = computeApparentPower(vrms, irms);
+double powerFactor = computePowerFactor(realPower, apparentPower);
 
-            auto vWaveSamples = voltageBuffer.latest(5 * cycleSamples);
-            auto iWaveSamples = currentBuffer.latest(5 * cycleSamples);
+QString alarm = "NORMAL";
 
-            QVector<double> vWave = QVector<double>(vWaveSamples.begin(), vWaveSamples.end());
-            QVector<double> iWave = QVector<double>(iWaveSamples.begin(), iWaveSamples.end());
+if (vrms < LOW_VOLT_LIMIT) {
+    alarm = "UNDERVOLTAGE";
+} else if (vrms > HIGH_VOLT_LIMIT) {
+    alarm = "OVERVOLTAGE";
+} else if (irms > HIGH_CURRENT_LIMIT) {
+    alarm = "OVERCURRENT";
+}
 
-            emit newReadings(vrms, irms, alarm);
-            emit newWaveform(vWave, iWave);
+auto vWaveSamples = voltageBuffer.latest(5 * cycleSamples);
+auto iWaveSamples = currentBuffer.latest(5 * cycleSamples);
 
-            if (alarm != "NORMAL" && alarm != lastAlarmState) {
-                emit alarmTriggered(alarm, vrms, irms);
-            }
-            lastAlarmState = alarm;
+QVector<double> vWave = QVector<double>(vWaveSamples.begin(), vWaveSamples.end());
+QVector<double> iWave = QVector<double>(iWaveSamples.begin(), iWaveSamples.end());
+
+emit newReadings(vrms, irms, realPower, apparentPower, powerFactor, alarm);
+emit newWaveform(vWave, iWave);
+
+if (alarm != "NORMAL" && alarm != lastAlarmState) {
+    emit alarmTriggered(alarm, vrms, irms);
+}
+
+lastAlarmState = alarm;
         }
     }
 #endif
