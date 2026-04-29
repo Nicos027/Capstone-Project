@@ -135,10 +135,17 @@ void MainWindow::buildUi()
         return panel;
     };
 
-    QWidget *vPanel = makeReadingPanel("V RMS", "volts", "#E24B4A", vrmsValueLabel_);
-    QWidget *iPanel = makeReadingPanel("I RMS", "amps",  "#EF9F27", irmsValueLabel_);
-
-    readingsLayout->addWidget(vPanel, 1);
+    QWidget *vPanel  = makeReadingPanel("V RMS", "volts", "#E24B4A", vrmsValueLabel_);
+    QWidget *iPanel  = makeReadingPanel("I RMS", "amps",  "#EF9F27", irmsValueLabel_);
+    QWidget *pPanel  = makeReadingPanel("REAL POWER", "W",   "#4CAF50", realPowerValueLabel_);
+    QWidget *sPanel  = makeReadingPanel("APPARENT POWER", "VA", "#42A5F5", apparentPowerValueLabel_);
+    QWidget *pfPanel = makeReadingPanel("POWER FACTOR", "",    "#AB47BC", powerFactorValueLabel_);
+    
+    readingsLayout->addWidget(vPanel);
+    readingsLayout->addWidget(iPanel);
+    readingsLayout->addWidget(pPanel);
+    readingsLayout->addWidget(sPanel);
+    readingsLayout->addWidget(pfPanel);
 
     QWidget *divider = new QWidget(readingsRow);
     divider->setFixedWidth(1);
