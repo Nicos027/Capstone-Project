@@ -20,7 +20,12 @@ public slots:
     void run();
 
 signals:
-    void newReadings(double vrms, double irms, const QString& alarm);
+    void newReadings(double vrms,
+                 double irms,
+                 double realPower,
+                 double apparentPower,
+                 double powerFactor,
+                 const QString& alarm);
     void newWaveform(const QVector<double>& voltage,
                      const QVector<double>& current);
     void alarmTriggered(const QString& alarmType, double vrms, double irms);
