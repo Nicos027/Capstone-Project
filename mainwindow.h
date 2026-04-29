@@ -25,7 +25,12 @@ public:
 
 private slots:
     void onRunStopClicked();
-    void onNewReadings(double vrms, double irms, const QString& alarm);
+    void onNewReadings(double vrms,
+                   double irms,
+                   double realPower,
+                   double apparentPower,
+                   double powerFactor,
+                   const QString& alarm);
     void onNewWaveform(const QVector<double>& voltage,
                        const QVector<double>& current);
     void onAlarmTriggered(const QString& alarmType, double vrms, double irms);
@@ -43,6 +48,9 @@ private:
     QLabel         *alarmLabel_;
     QLabel         *statusLabel_;
     QLabel         *mqttStatusLabel_;
+    QLabel         *realPowerValue_;
+    QLabel         *apparentPowerValue_;
+    QLabel         *powerFactorValue_;
     QPushButton    *runStopBtn_;
     WaveformWidget *waveform_;
 
