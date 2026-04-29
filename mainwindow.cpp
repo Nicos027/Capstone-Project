@@ -249,10 +249,18 @@ void MainWindow::onRunStopClicked()
     }
 }
 
-void MainWindow::onNewReadings(double vrms, double irms, const QString& alarm)
+void MainWindow::onNewReadings(double vrms,
+                               double irms,
+                               double realPower,
+                               double apparentPower,
+                               double powerFactor,
+                               const QString& alarm)
 {
     vrmsValueLabel_->setText(QString::number(vrms, 'f', 1));
     irmsValueLabel_->setText(QString::number(irms, 'f', 2));
+    realPowerValueLabel_->setText(QString::number(realPower, 'f', 1));
+    apparentPowerValueLabel_->setText(QString::number(apparentPower, 'f', 1));
+    powerFactorValueLabel_->setText(QString::number(powerFactor, 'f', 3));
 
     if (alarm == "NORMAL") {
         alarmLabel_->setText("NORMAL");
