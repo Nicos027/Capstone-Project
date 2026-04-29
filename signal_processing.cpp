@@ -67,3 +67,28 @@ double computeACRMS(const vector<double>& x) {
 
     return sqrt(sumSq / static_cast<double>(x.size()));
 }
+
+double computeMeanProduct(const std::vector<double>& a, const std::vector<double>& b) {
+    if (a.empty() || b.empty() || a.size() != b.size()) {
+        return 0.0;
+    }
+
+    double sum = 0.0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        sum += a[i] * b[i];
+    }
+
+    return sum / static_cast<double>(a.size());
+}
+
+double computeApparentPower(double vrms, double irms) {
+    return vrms * irms;
+}
+
+double computePowerFactor(double realPower, double apparentPower) {
+    if (apparentPower == 0.0) {
+        return 0.0;
+    }
+
+    return realPower / apparentPower;
+}
