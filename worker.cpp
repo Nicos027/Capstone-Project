@@ -143,16 +143,17 @@ QString alarm;
 
 if (relayLatched) {
     alarm = "OVERVOLTAGE";
+    lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay open
 } else if (vrms > HIGH_VOLT_LIMIT) {
     alarm = "OVERVOLTAGE";
     relayLatched = true;
     lgGpioWrite(gpiochip, RELAY_GPIO, 0); // open relay
 } else if (vrms < LOW_VOLT_LIMIT) {
     alarm = "UNDERVOLTAGE";
-    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay closed / load powered
+    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay closed
 } else {
     alarm = "NORMAL";
-    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // relay closed / load powered
+    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay closed
 }
 
             auto vWaveSamples = voltageBuffer.latest(5 * cycleSamples);
