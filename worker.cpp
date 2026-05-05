@@ -139,20 +139,21 @@ void Worker::run() {
             // Overcurrent is intentionally NOT handled here. The wall
             // breaker is the current-protection authority. VoltWatch
             // measures and reports current but does not act on it.
-            QString alarm;
-            if (relayLatched) {
-                alarm = lastAlarmState;
-            } else if (vrms < LOW_VOLT_LIMIT) {
-                alarm = "UNDERVOLTAGE";
-                relayLatched = true;
-                lgGpioWrite(gpiochip, RELAY_GPIO, 0);  // open relay (disconnect load)
-            } else if (vrms > HIGH_VOLT_LIMIT) {
-                alarm = "OVERVOLTAGE";
-                relayLatched = true;
-                lgGpioWrite(gpiochip, RELAY_GPIO, 0);  // open relay (disconnect load)
-            } else {
-                alarm = "NORMAL";
-            }
+QString alarm;
+
+if (relayLatched) {
+    alarm = "OVERVOLTAGE";
+} else if (vrms > HIGH_VOLT_LIMIT) {
+    alarm = "OVERVOLTAGE";
+    relayLatched = true;
+    lgGpioWrite(gpiochip, RELAY_GPIO, 0); // open relay
+} else if (vrms < LOW_VOLT_LIMIT) {
+    alarm = "UNDERVOLTAGE";
+    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay closed / load powered
+} else {
+    alarm = "NORMAL";
+    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // relay closed / load powered
+}
 
             auto vWaveSamples = voltageBuffer.latest(5 * cycleSamples);
             auto iWaveSamples = currentBuffer.latest(5 * cycleSamples);
