@@ -127,7 +127,7 @@ void Worker::run() {
             // Combines the measurement (Nicos's RMS math) with the actuation
             // (relay GPIO write) into a single decision per emit cycle.
             //
-            //   V_RMS < 108         -> UNDERVOLTAGE -> open relay (latched)
+            //   V_RMS < 108         -> UNDERVOLTAGE -> open relay (non latched)
             //   108 <= V_RMS <= 132 -> NORMAL       -> relay stays closed
             //   V_RMS > 132         -> OVERVOLTAGE  -> open relay (latched)
             //
