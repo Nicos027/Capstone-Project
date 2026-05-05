@@ -47,6 +47,7 @@ void Worker::run() {
 
     QString lastAlarmState = "NORMAL";
     bool relayLatched = false;
+    QString latchedFault = "NORMAL";
 
     ADS131M02 adc("/dev/spidev0.0", 1000000, 27, 17, 18);
 
@@ -62,8 +63,6 @@ void Worker::run() {
         return;
     }
 
-    // Verify ADC is actually responding — attempt up to 10 sample reads.
-    // If none succeed, the chip is either not wired up or not powered.
     bool adcResponded = false;
     for (int attempt = 0; attempt < 10; ++attempt) {
         SampleFrame probe{};
@@ -79,9 +78,6 @@ void Worker::run() {
         return;
     }
 
-    // Open gpiochip and claim the relay pin.
-    // Relay is wired NC: GPIO=1 -> coil de-energized -> NC closed -> load powered.
-    //                    GPIO=0 -> coil energized   -> NC open   -> load disconnected.
     int gpiochip = lgGpiochipOpen(0);
     if (gpiochip < 0) {
         emit errorMessage("Failed to open gpiochip for relay");
@@ -117,44 +113,32 @@ void Worker::run() {
             auto vWin = voltageBuffer.latest(cycleSamples);
             auto iWin = currentBuffer.latest(cycleSamples);
 
+            auto iWinCentered = centerSignal(iWin);
+            auto vWinCentered = centerSignal(vWin);
+
             double vrms = computeRMS(vWin);
             double irms = computeACRMS(iWin);
-            double realPower     = computeMeanProduct(vWin, iWin);
+            double realPower     = computeMeanProduct(vWinCentered, iWinCentered);
             double apparentPower = computeApparentPower(vrms, irms);
             double powerFactor   = computePowerFactor(realPower, apparentPower);
 
-            // ===== Supervisory logic =====
-            // Combines the measurement (Nicos's RMS math) with the actuation
-            // (relay GPIO write) into a single decision per emit cycle.
-            //
-            //   V_RMS < 108         -> UNDERVOLTAGE -> open relay (non latched)
-            //   108 <= V_RMS <= 132 -> NORMAL       -> relay stays closed
-            //   V_RMS > 132         -> OVERVOLTAGE  -> open relay (latched)
-            //
-            // Once the relay has latched on a fault, the alarm string is
-            // held sticky. This stops the alarm from oscillating back to
-            // NORMAL when the disconnected load drops V_RMS, which would
-            // otherwise re-fire the ntfy push every cycle.
-            //
-            // Overcurrent is intentionally NOT handled here. The wall
-            // breaker is the current-protection authority. VoltWatch
-            // measures and reports current but does not act on it.
-QString alarm;
+            QString alarm = "NORMAL";
 
-if (relayLatched) {
-    alarm = "OVERVOLTAGE";
-    lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay open
-} else if (vrms > HIGH_VOLT_LIMIT) {
-    alarm = "OVERVOLTAGE";
-    relayLatched = true;
-    lgGpioWrite(gpiochip, RELAY_GPIO, 0); // open relay
-} else if (vrms < LOW_VOLT_LIMIT) {
-    alarm = "UNDERVOLTAGE";
-    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay closed
-} else {
-    alarm = "NORMAL";
-    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay closed
-}
+            if (relayLatched) {
+                alarm = latchedFault;
+                lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay open
+            } else if (vrms > HIGH_VOLT_LIMIT) {
+                alarm = "OVERVOLTAGE";
+                relayLatched = true;
+                latchedFault = "OVERVOLTAGE";
+                lgGpioWrite(gpiochip, RELAY_GPIO, 0); // open relay
+            } else if (vrms < LOW_VOLT_LIMIT) {
+                alarm = "UNDERVOLTAGE";
+                lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay closed
+            } else {
+                alarm = "NORMAL";
+                lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay closed
+            }
 
             auto vWaveSamples = voltageBuffer.latest(5 * cycleSamples);
             auto iWaveSamples = currentBuffer.latest(5 * cycleSamples);
@@ -171,11 +155,10 @@ if (relayLatched) {
         }
     }
 
-    // On shutdown: leave relay in current state (if latched, keep latched
-    // so protection stays engaged until someone resets the system).
     if (!relayLatched) {
         lgGpioWrite(gpiochip, RELAY_GPIO, 1);  // de-energize relay (load powered)
     }
+
     lgGpiochipClose(gpiochip);
     adc.closeDevice();
 
