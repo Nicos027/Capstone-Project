@@ -113,12 +113,9 @@ void Worker::run() {
             auto vWin = voltageBuffer.latest(cycleSamples);
             auto iWin = currentBuffer.latest(cycleSamples);
 
-            auto iWinCentered = centerSignal(iWin);
-            auto vWinCentered = centerSignal(vWin);
-
             double vrms = computeRMS(vWin);
             double irms = computeACRMS(iWin);
-            double realPower     = computeMeanProduct(vWinCentered, iWinCentered);
+            double realPower     = computeMeanProduct(vWin, iWin);
             double apparentPower = computeApparentPower(vrms, irms);
             double powerFactor   = computePowerFactor(realPower, apparentPower);
 
