@@ -28,11 +28,11 @@ MainWindow::MainWindow(QWidget *parent)
     mqtt_ = new MqttPublisher(this);
     using namespace VoltWatchConfig;
     if (mqtt_->connectToBroker(MQTT_BROKER,
-                                MQTT_PORT,
-                                CLIENT_ID,
-                                MQTT_USERNAME,
-                                MQTT_PASSWORD,
-                                TOPIC_PREFIX)) {
+                               MQTT_PORT,
+                               CLIENT_ID,
+                               MQTT_USERNAME,
+                               MQTT_PASSWORD,
+                               TOPIC_PREFIX)) {
         mqttStatusLabel_->setText(QString("MQTT: Connected [%1]").arg(DEVICE_ID));
         mqttStatusLabel_->setStyleSheet("color: #C0DD97; font-size: 11px;");
     } else {
@@ -107,9 +107,9 @@ void MainWindow::buildUi()
     readingsLayout->setSpacing(1);
 
     auto makeReadingPanel = [&](const QString& label,
-                                 const QString& unit,
-                                 const QString& color,
-                                 QLabel*& outValueLabel)
+                                const QString& unit,
+                                const QString& color,
+                                QLabel*& outValueLabel)
     {
         QWidget *panel = new QWidget(readingsRow);
         panel->setStyleSheet("background: #1a1a1a;");
@@ -136,23 +136,16 @@ void MainWindow::buildUi()
     };
 
     QWidget *vPanel  = makeReadingPanel("V RMS", "volts", "#E24B4A", vrmsValueLabel_);
-    QWidget *iPanel  = makeReadingPanel("I RMS", "amps",  "#EF9F27", irmsValueLabel_);
-    QWidget *pPanel  = makeReadingPanel("REAL POWER", "W",   "#4CAF50", realPowerValue_);
+    QWidget *iPanel  = makeReadingPanel("I RMS", "amps", "#EF9F27", irmsValueLabel_);
+    QWidget *pPanel  = makeReadingPanel("REAL POWER", "W", "#4CAF50", realPowerValue_);
     QWidget *sPanel  = makeReadingPanel("APPARENT POWER", "VA", "#42A5F5", apparentPowerValue_);
-    QWidget *pfPanel = makeReadingPanel("POWER FACTOR", "",    "#AB47BC", powerFactorValue_);
-    
+    QWidget *pfPanel = makeReadingPanel("POWER FACTOR", "", "#AB47BC", powerFactorValue_);
+
     readingsLayout->addWidget(vPanel);
     readingsLayout->addWidget(iPanel);
     readingsLayout->addWidget(pPanel);
     readingsLayout->addWidget(sPanel);
     readingsLayout->addWidget(pfPanel);
-
-    QWidget *divider = new QWidget(readingsRow);
-    divider->setFixedWidth(1);
-    divider->setStyleSheet("background: #404040;");
-    readingsLayout->addWidget(divider);
-
-    readingsLayout->addWidget(iPanel, 1);
 
     mainLayout->addWidget(readingsRow);
 
@@ -217,6 +210,10 @@ void MainWindow::setRunningVisuals(bool running)
 
         vrmsValueLabel_->setText("---.--");
         irmsValueLabel_->setText("---.--");
+        realPowerValue_->setText("---.--");
+        apparentPowerValue_->setText("---.--");
+        powerFactorValue_->setText("---.--");
+
         alarmLabel_->setText("Press RUN to start measurement");
         alarmLabel_->setStyleSheet(
             "background: #0d0d0d; border: 1px solid #404040; border-radius: 6px; "
@@ -277,14 +274,14 @@ void MainWindow::onNewReadings(double vrms,
             "font-size: 22px; font-weight: bold;"
         );
     } else if (alarm == "OVERVOLTAGE") {
-        alarmLabel_->setText(QString("OVERVOLTAGE -- %1 V | RELAY OPEN").arg(vrms, 0, 'f', 1));
+        alarmLabel_->setText("OVERVOLTAGE | RELAY OPEN");
         alarmLabel_->setStyleSheet(
             "background: #501313; border: 1px solid #E24B4A; "
             "border-radius: 6px; color: #FCEBEB; "
             "font-size: 20px; font-weight: bold;"
         );
     } else if (alarm == "OVERCURRENT") {
-        alarmLabel_->setText(QString("OVERCURRENT -- %1 A | RELAY OPEN").arg(irms, 0, 'f', 2));
+        alarmLabel_->setText("OVERCURRENT | RELAY OPEN");
         alarmLabel_->setStyleSheet(
             "background: #501313; border: 1px solid #E24B4A; "
             "border-radius: 6px; color: #FCEBEB; "
@@ -301,7 +298,7 @@ void MainWindow::onNewReadings(double vrms,
 }
 
 void MainWindow::onNewWaveform(const QVector<double>& voltage,
-                                const QVector<double>& current)
+                               const QVector<double>& current)
 {
     waveform_->setData(voltage, current);
 }
