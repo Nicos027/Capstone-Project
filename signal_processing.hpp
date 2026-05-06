@@ -38,5 +38,6 @@ double computeMean(const std::vector<double>& x);
 double computeACRMS(const std::vector<double>& x);
 
 double computeMeanProduct(const std::vector<double>& a, const std::vector<double>& b);
+double computeMeanProductAC(const std::vector<double>& a, const std::vector<double>& b);
 double computeApparentPower(double vrms, double irms);
 double computePowerFactor(double realPower, double apparentPower);
