@@ -266,12 +266,19 @@ void MainWindow::onNewReadings(double vrms,
             "border-radius: 6px; color: #C0DD97; "
             "font-size: 22px; font-weight: bold;"
         );
-    } else if (alarm == "UNDERVOLTAGE") {
-        alarmLabel_->setText(QString("UNDERVOLTAGE -- %1 V").arg(vrms, 0, 'f', 1));
+    } else if (alarm == "UNDERVOLTAGE_WARN") {
+        alarmLabel_->setText(QString("UNDERVOLTAGE WARNING -- %1 V").arg(vrms, 0, 'f', 1));
+        alarmLabel_->setStyleSheet(
+            "background: #4F3A00; border: 1px solid #EF9F27; "
+            "border-radius: 6px; color: #FFE8B3; "
+            "font-size: 22px; font-weight: bold;"
+        );
+    } else if (alarm == "UNDERVOLTAGE_TRIP") {
+        alarmLabel_->setText("UNDERVOLTAGE | RELAY OPEN");
         alarmLabel_->setStyleSheet(
             "background: #501313; border: 1px solid #E24B4A; "
             "border-radius: 6px; color: #FCEBEB; "
-            "font-size: 22px; font-weight: bold;"
+            "font-size: 20px; font-weight: bold;"
         );
     } else if (alarm == "OVERVOLTAGE") {
         alarmLabel_->setText("OVERVOLTAGE | RELAY OPEN");
