@@ -63,6 +63,8 @@ namespace VoltWatchConfig {
     static const double NOMINAL_VOLTAGE = 120.0;
     static const double LOW_VOLT_LIMIT  = 108.0;
     static const double HIGH_VOLT_LIMIT = 132.0;
+    static const double TRIP_LOW_VOLT_LIMIT = 102.0;   // relay trip threshold
+          
 
     // Relay control (active-low: GPIO=1 -> relay OFF -> NC contacts closed -> load powered)
     static const int RELAY_GPIO = 16;
