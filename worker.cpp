@@ -40,6 +40,7 @@ void Worker::stop() {
 void Worker::run() {
     using namespace VoltWatchConfig;
     running_ = true;
+    int overVoltageCount = 0;
 
     const size_t cycleSamples = static_cast<size_t>(Sample_Rate / 60.0);
     RollingBuffer voltageBuffer(5 * cycleSamples);
@@ -121,21 +122,29 @@ void Worker::run() {
 
             QString alarm = "NORMAL";
 
-            if (relayLatched) {
-                alarm = latchedFault;
-                lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay open
-            } else if (vrms > HIGH_VOLT_LIMIT) {
-                alarm = "OVERVOLTAGE";
-                relayLatched = true;
-                latchedFault = "OVERVOLTAGE";
-                lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
-            } else if (vrms < LOW_VOLT_LIMIT) {
-                alarm = "UNDERVOLTAGE";
-                lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
-            } else {
-                alarm = "NORMAL";
-                lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
-            }
+if (relayLatched) {
+    alarm = latchedFault;
+    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay open
+} else {
+    if (vrms > HIGH_VOLT_LIMIT) {
+        overVoltageCount++;
+    } else {
+        overVoltageCount = 0;
+    }
+
+    if (overVoltageCount >= 5) {   // require 5 consecutive bad windows
+        alarm = "OVERVOLTAGE";
+        relayLatched = true;
+        latchedFault = "OVERVOLTAGE";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
+    } else if (vrms < LOW_VOLT_LIMIT) {
+        alarm = "UNDERVOLTAGE";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
+    } else {
+        alarm = "NORMAL";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
+    }
+}
 
             auto vWaveSamples = voltageBuffer.latest(5 * cycleSamples);
             auto iWaveSamples = currentBuffer.latest(5 * cycleSamples);
