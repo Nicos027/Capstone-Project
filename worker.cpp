@@ -50,7 +50,9 @@ void Worker::run() {
     QString latchedFault = "NORMAL";
 
     int overVoltageCount = 0;
-
+    int underVoltageTripCount = 0;
+    int underVoltageWarnCount = 0;
+    
     ADS131M02 adc("/dev/spidev0.0", 1000000, 27, 17, 18);
 
     if (!adc.openDevice()) {
@@ -126,34 +128,46 @@ void Worker::run() {
 
             QString alarm = "NORMAL";
 
-            if (relayLatched) {
-                alarm = latchedFault;
-                lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay open
-            } else {
-                if (vrms > HIGH_VOLT_LIMIT) {
-                    overVoltageCount++;
-                } else {
-                    overVoltageCount = 0;
-                }
+if (relayLatched) {
+    alarm = latchedFault;
+    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay open
+} else {
+    if (vrms > HIGH_VOLT_LIMIT) {
+        overVoltageCount++;
+    } else {
+        overVoltageCount = 0;
+    }
 
-                if (vrms < TRIP_LOW_VOLT_LIMIT) {
-                    alarm = "UNDERVOLTAGE_TRIP";
-                    relayLatched = true;
-                    latchedFault = "UNDERVOLTAGE_TRIP";
-                    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
-                } else if (overVoltageCount >= 5) {
-                    alarm = "OVERVOLTAGE";
-                    relayLatched = true;
-                    latchedFault = "OVERVOLTAGE";
-                    lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
-                } else if (vrms < LOW_VOLT_LIMIT) {
-                    alarm = "UNDERVOLTAGE_WARN";
-                    lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
-                } else {
-                    alarm = "NORMAL";
-                    lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
-                }
-            }
+    if (vrms < TRIP_LOW_VOLT_LIMIT) {
+        underVoltageTripCount++;
+    } else {
+        underVoltageTripCount = 0;
+    }
+
+    if (vrms < LOW_VOLT_LIMIT && vrms >= TRIP_LOW_VOLT_LIMIT) {
+        underVoltageWarnCount++;
+    } else {
+        underVoltageWarnCount = 0;
+    }
+
+    if (underVoltageTripCount >= 5) {
+        alarm = "UNDERVOLTAGE_TRIP";
+        relayLatched = true;
+        latchedFault = "UNDERVOLTAGE_TRIP";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
+    } else if (overVoltageCount >= 5) {
+        alarm = "OVERVOLTAGE";
+        relayLatched = true;
+        latchedFault = "OVERVOLTAGE";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
+    } else if (underVoltageWarnCount >= 2) {
+        alarm = "UNDERVOLTAGE_WARN";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
+    } else {
+        alarm = "NORMAL";
+        lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
+    }
+}
 
             auto vWaveSamples = voltageBuffer.latest(5 * cycleSamples);
             auto iWaveSamples = currentBuffer.latest(5 * cycleSamples);
