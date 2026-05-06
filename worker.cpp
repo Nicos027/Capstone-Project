@@ -172,6 +172,22 @@ void Worker::run() {
         double apparentPower = computeApparentPower(vrms, irms);
         double powerFactor   = computePowerFactor(realPower, apparentPower);
 
+        if (irms < 0.03) {
+    irms = 0.0;
+}
+
+if (qAbs(realPower) < 2.0) {
+    realPower = 0.0;
+}
+
+if (apparentPower < 2.0) {
+    apparentPower = 0.0;
+}
+
+if (apparentPower == 0.0) {
+    powerFactor = 0.0;
+}
+
         QString alarm = "NORMAL";
 
         if (relayLatched) {
