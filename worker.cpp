@@ -65,7 +65,6 @@ void Worker::run() {
         return;
     }
 
-    // Verify ADC is actually responding
     bool adcResponded = false;
     for (int attempt = 0; attempt < 10; ++attempt) {
         SampleFrame probe{};
@@ -81,7 +80,7 @@ void Worker::run() {
         return;
     }
 
-    // Relay wiring behavior in your setup:
+    // Relay wiring in your setup:
     // GPIO = 0 -> relay closed / load powered
     // GPIO = 1 -> relay open   / load disconnected
     int gpiochip = lgGpiochipOpen(0);
@@ -131,7 +130,6 @@ void Worker::run() {
                 alarm = latchedFault;
                 lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay open
             } else {
-                // Debounce only overvoltage latch
                 if (vrms > HIGH_VOLT_LIMIT) {
                     overVoltageCount++;
                 } else {
@@ -139,9 +137,9 @@ void Worker::run() {
                 }
 
                 if (vrms < TRIP_LOW_VOLT_LIMIT) {
-                    alarm = "UNDERVOLTAGE";
+                    alarm = "UNDERVOLTAGE_TRIP";
                     relayLatched = true;
-                    latchedFault = "UNDERVOLTAGE";
+                    latchedFault = "UNDERVOLTAGE_TRIP";
                     lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
                 } else if (overVoltageCount >= 5) {
                     alarm = "OVERVOLTAGE";
@@ -149,7 +147,7 @@ void Worker::run() {
                     latchedFault = "OVERVOLTAGE";
                     lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
                 } else if (vrms < LOW_VOLT_LIMIT) {
-                    alarm = "UNDERVOLTAGE";
+                    alarm = "UNDERVOLTAGE_WARN";
                     lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep relay closed
                 } else {
                     alarm = "NORMAL";
@@ -172,7 +170,6 @@ void Worker::run() {
         }
     }
 
-    // On shutdown, leave relay in its present state if latched.
     if (!relayLatched) {
         lgGpioWrite(gpiochip, RELAY_GPIO, 0); // keep load powered
     }
