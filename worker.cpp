@@ -168,7 +168,7 @@ void Worker::run() {
 
         double vrms = computeRMS(vControlWin);
         double irms = computeACRMS(iControlWin);
-        double realPower     = computeMeanProduct(vControlWin, iControlWin);
+        double realPower     = computeMeanProductAC(vControlWin, iControlWin);
         double apparentPower = computeApparentPower(vrms, irms);
         double powerFactor   = computePowerFactor(realPower, apparentPower);
 
