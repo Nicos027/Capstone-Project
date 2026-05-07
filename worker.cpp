@@ -6,6 +6,7 @@
 #include <QThread>
 #include <QtMath>
 #include <QDebug>
+#include <QDateTime>
 #include <climits>
 #include <vector>
 #include <lgpio.h>
@@ -85,6 +86,7 @@ void Worker::run() {
     QString lastAlarmState = "NORMAL";
     bool relayLatched = false;
     QString latchedFault = "NORMAL";
+    QDateTime relayLatchTime;
 
     int overVoltageCount = 0;
     int underVoltageTripCount = 0;
@@ -190,6 +192,17 @@ if (apparentPower == 0.0) {
 
         QString alarm = "NORMAL";
 
+        if (relayLatched && relayLatchTime.isValid()) {
+    if (relayLatchTime.secsTo(QDateTime::currentDateTime()) >= 15) {
+        relayLatched = false;
+        latchedFault = "NORMAL";
+        relayLatchTime = QDateTime();
+        overVoltageCount = 0;
+        underVoltageTripCount = 0;
+        underVoltageWarnCount = 0;
+    }
+}
+
         if (relayLatched) {
             alarm = latchedFault;
             lgGpioWrite(gpiochip, RELAY_GPIO, 1); // keep relay open
@@ -216,11 +229,13 @@ if (apparentPower == 0.0) {
                 alarm = "UNDERVOLTAGE_TRIP";
                 relayLatched = true;
                 latchedFault = "UNDERVOLTAGE_TRIP";
+                relayLatchTime = QDateTime::currentDateTime();
                 lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
             } else if (overVoltageCount >= 5) {
                 alarm = "OVERVOLTAGE";
                 relayLatched = true;
                 latchedFault = "OVERVOLTAGE";
+                relayLatchTime = QDateTime::currentDateTime();
                 lgGpioWrite(gpiochip, RELAY_GPIO, 1); // open relay
             } else if (underVoltageWarnCount >= 2) {
                 alarm = "UNDERVOLTAGE_WARN";
