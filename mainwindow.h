@@ -1,22 +1,31 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
+
 #include <QMainWindow>
 #include <QVector>
+
 class QLabel;
 class QPushButton;
 class QThread;
+class QStackedWidget;
+class QListWidget;
 class Worker;
 class WaveformWidget;
 class MqttPublisher;
+class AlarmHistory;
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
+
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
 private slots:
     void onRunStopClicked();
     void onNewReadings(double vrms,
@@ -30,8 +39,13 @@ private slots:
     void onAlarmTriggered(const QString& alarmType, double vrms, double irms);
     void onWorkerFinished();
     void onErrorMessage(const QString& msg);
+    void onShowHistoryClicked();
+    void onBackToMainClicked();
+
 private:
     void buildUi();
+    void buildHistoryPage();
+    void refreshHistoryList();
     void setRunningVisuals(bool running);
 
     // Adaptive UI sizing — populated from actual screen size at startup.
@@ -63,11 +77,18 @@ private:
     QLabel         *apparentPowerValue_;
     QLabel         *powerFactorValue_;
     QPushButton    *runStopBtn_;
+    QPushButton    *historyBtn_ = nullptr;
     WaveformWidget *waveform_;
+    QStackedWidget *pageStack_   = nullptr;
+    QWidget        *mainPage_    = nullptr;
+    QWidget        *historyPage_ = nullptr;
+    QListWidget    *historyList_ = nullptr;
     QThread       *workerThread_ = nullptr;
     Worker        *worker_       = nullptr;
     MqttPublisher *mqtt_         = nullptr;
+    AlarmHistory  *alarmDb_      = nullptr;
     bool running_ = false;
     int telemetryDivider_ = 0;
 };
+
 #endif
