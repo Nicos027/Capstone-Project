@@ -1,8 +1,9 @@
-QT       += core gui widgets
+QT       += core gui widgets network sql
 
 CONFIG += c++17
 
 DEFINES += QT_DEPRECATED_WARNINGS
+
 DEFINES += USE_REAL_ADC
 
 LIBS += -llgpio -lmosquitto -lcurl
@@ -13,6 +14,8 @@ SOURCES += \
     worker.cpp \
     waveformwidget.cpp \
     mqttpublisher.cpp \
+    wifiprovisioning.cpp \
+    alarmhistory.cpp \
     signal_processing.cpp \
     ads131m02.cpp
 
@@ -22,6 +25,8 @@ HEADERS += \
     worker.h \
     waveformwidget.h \
     mqttpublisher.h \
+    wifiprovisioning.h \
+    alarmhistory.h \
     signal_processing.hpp \
     ads131m02.hpp
 
