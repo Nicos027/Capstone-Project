@@ -154,7 +154,7 @@ void Worker::run() {
         }
         emitDivider = 0;
 
-        // --- Control / alarm window (more stable, 5 cycles) ---
+        // --- Control / alarm window (5 cycles) ---
         auto vControlWin = voltageBuffer.latest(controlSamples);
         auto iControlWin = currentBuffer.latest(controlSamples);
         double vrms = computeRMS(vControlWin);
